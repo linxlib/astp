@@ -5,7 +5,7 @@ type Var struct {
 	Name        string //变量名
 	PackagePath string
 	TypeString  string   //类型文本
-	Type        ITyper   //类型
+	Type        *Struct  //类型
 	InnerType   bool     //内置类型
 	IsStruct    bool     //是否结构体
 	Pointer     bool     //指针
@@ -14,6 +14,10 @@ type Var struct {
 	Value       any      //值
 	Docs        []string //文档
 	Comments    string   //注释
+}
+
+func (v *Var) GetType() *Struct {
+	return v.Type
 }
 
 func (v *Var) SetPackagePath(s string) {
@@ -44,7 +48,7 @@ func (v *Var) SetSlice(b bool) {
 	v.Slice = b
 }
 
-func (v *Var) SetType(namer ITyper) {
+func (v *Var) SetType(namer *Struct) {
 	v.Type = namer
 }
 

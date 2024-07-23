@@ -6,10 +6,10 @@ import (
 
 // StructField 结构体字段
 type StructField struct {
-	Index       int    //索引
-	Name        string //字段名
-	PackagePath string //包名
-	Type        ITyper //类型
+	Index       int     //索引
+	Name        string  //字段名
+	PackagePath string  //包名
+	Type        *Struct //类型
 	rType       reflect.Type
 	HasTag      bool              //是否有tag
 	Tag         reflect.StructTag `json:"-"` //tag
@@ -21,6 +21,14 @@ type StructField struct {
 	IsStruct    bool              //是否结构体
 	Docs        []string          //文档
 	Comment     string            //注释
+}
+
+func (f *StructField) GetType() *Struct {
+	return f.Type
+}
+
+func (f *StructField) GetName() string {
+	return f.Name
 }
 
 func (f *StructField) GetRType() reflect.Type {
@@ -58,7 +66,7 @@ func (f *StructField) SetSlice(b bool) {
 	f.Slice = b
 }
 
-func (f *StructField) SetType(namer ITyper) {
+func (f *StructField) SetType(namer *Struct) {
 	f.Type = namer
 }
 

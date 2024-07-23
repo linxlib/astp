@@ -16,12 +16,9 @@ import (
 	"sync"
 )
 
-type ITyper interface {
-	GetName() string
-}
-
 type ISetTypeNamer interface {
-	SetType(namer ITyper)
+	GetName() string
+	SetType(namer *Struct)
 	SetInnerType(b bool)
 	SetIsStruct(b bool)
 	SetTypeString(s string)
@@ -29,6 +26,7 @@ type ISetTypeNamer interface {
 	SetPrivate(b bool)
 	SetSlice(b bool)
 	SetPackagePath(s string)
+	GetType() *Struct
 }
 
 // 这里解析完之后的输出内容，可以为生成一个go文件，这个文件里包含了为当前这个对象赋值的语句
@@ -254,8 +252,8 @@ func (p *Parser) parseConsts(file *File, af *ast.File) {
 //
 // @param pkg 包名
 // @param name 类型名（可以是struct func var const）
-func (p *Parser) findFileByPackageAndType(pkg string, name string) ITyper {
-	var findInFile = func(f *File) ITyper {
+func (p *Parser) findFileByPackageAndType(pkg string, name string) ISetTypeNamer {
+	var findInFile = func(f *File) ISetTypeNamer {
 		for _, s := range f.Structs {
 			if s.Name == name {
 				return s
@@ -657,7 +655,7 @@ func (p *Parser) parseSelector(spec *ast.SelectorExpr, name string, imports []*I
 			snamer.SetPackagePath(i3.ImportPath)
 			namer := p.findFileByPackageAndType(i3.ImportPath, typeName)
 			if namer != nil {
-				snamer.SetType(namer)
+				snamer.SetType(namer.GetType())
 			} else {
 				snamer.SetInnerType(true)
 			}
@@ -703,7 +701,7 @@ func (p *Parser) parseStar(spec *ast.StarExpr, name string, imports []*Import, s
 				snamer.SetPackagePath(i3.ImportPath)
 				namer := p.findFileByPackageAndType(i3.ImportPath, typeName)
 				if namer != nil {
-					snamer.SetType(namer)
+					snamer.SetType(namer.GetType())
 				} else {
 					snamer.SetInnerType(true)
 				}
@@ -733,7 +731,7 @@ func (p *Parser) parseStar(spec *ast.StarExpr, name string, imports []*Import, s
 					snamer.SetPackagePath(i3.ImportPath)
 					namer := p.findFileByPackageAndType(i3.ImportPath, typeName)
 					if namer != nil {
-						snamer.SetType(namer)
+						snamer.SetType(namer.GetType())
 					} else {
 						snamer.SetInnerType(true)
 					}
@@ -767,7 +765,7 @@ func (p *Parser) parseStar(spec *ast.StarExpr, name string, imports []*Import, s
 						snamer.SetPackagePath(i3.ImportPath)
 						namer := p.findFileByPackageAndType(i3.ImportPath, typeName)
 						if namer != nil {
-							snamer.SetType(namer)
+							snamer.SetType(namer.GetType())
 						} else {
 							snamer.SetInnerType(true)
 						}
@@ -804,7 +802,7 @@ func (p *Parser) parseArrOrEll(spec any, name string, imports []*Import, snamer 
 					snamer.SetPackagePath(i3.ImportPath)
 					namer := p.findFileByPackageAndType(i3.ImportPath, typeName)
 					if namer != nil {
-						snamer.SetType(namer)
+						snamer.SetType(namer.GetType())
 					} else {
 						snamer.SetInnerType(true)
 					}
@@ -837,7 +835,7 @@ func (p *Parser) parseArrOrEll(spec any, name string, imports []*Import, snamer 
 						snamer.SetPackagePath(i3.ImportPath)
 						namer := p.findFileByPackageAndType(i3.ImportPath, typeName)
 						if namer != nil {
-							snamer.SetType(namer)
+							snamer.SetType(namer.GetType())
 						} else {
 							snamer.SetInnerType(true)
 						}
@@ -869,7 +867,7 @@ func (p *Parser) parseArrOrEll(spec any, name string, imports []*Import, snamer 
 					snamer.SetPackagePath(i3.ImportPath)
 					namer := p.findFileByPackageAndType(i3.ImportPath, typeName)
 					if namer != nil {
-						snamer.SetType(namer)
+						snamer.SetType(namer.GetType())
 					} else {
 						snamer.SetInnerType(true)
 					}
@@ -902,7 +900,7 @@ func (p *Parser) parseArrOrEll(spec any, name string, imports []*Import, snamer 
 						snamer.SetPackagePath(i3.ImportPath)
 						namer := p.findFileByPackageAndType(i3.ImportPath, typeName)
 						if namer != nil {
-							snamer.SetType(namer)
+							snamer.SetType(namer.GetType())
 						} else {
 							snamer.SetInnerType(true)
 						}
@@ -936,7 +934,7 @@ func (p *Parser) parseMap(spec *ast.MapType, name string, imports []*Import, sna
 				snamer.SetPackagePath(i3.ImportPath)
 				namer := p.findFileByPackageAndType(i3.ImportPath, typeName)
 				if namer != nil {
-					snamer.SetType(namer)
+					snamer.SetType(namer.GetType())
 				} else {
 					snamer.SetInnerType(true)
 				}
@@ -965,7 +963,7 @@ func (p *Parser) parseMap(spec *ast.MapType, name string, imports []*Import, sna
 					snamer.SetPackagePath(i3.ImportPath)
 					namer := p.findFileByPackageAndType(i3.ImportPath, typeName)
 					if namer != nil {
-						snamer.SetType(namer)
+						snamer.SetType(namer.GetType())
 					} else {
 						snamer.SetInnerType(true)
 					}
@@ -1014,7 +1012,7 @@ func (p *Parser) parseFields(file *File, fields []*ast.Field) []*StructField {
 		p.parseOther(field.Type, a.Name, file.Imports, a)
 		if a.Name == "" {
 			// 将继承的字段合并到当前结构
-			if f, ok := a.Type.(*Struct); ok {
+			if f := a.GetType(); f != nil {
 				sf = append(sf, f.Fields...)
 			}
 		}

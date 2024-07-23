@@ -16,21 +16,44 @@ type Struct struct {
 	Comment     string   //注释
 }
 
-func (s *Struct) AppendFields(fields []*StructField) {
-	s.Fields = append(s.Fields, fields...)
+func (s *Struct) GetType() *Struct {
+	return s
 }
 
-var StringStruct = &Struct{
-	Name: "string",
+func (s *Struct) SetType(namer *Struct) {
+
 }
-var IntStruct = &Struct{
-	Name: "int",
+
+func (s *Struct) SetInnerType(b bool) {
+
 }
-var Int64Struct = &Struct{
-	Name: "int64",
+
+func (s *Struct) SetIsStruct(b bool) {
+
 }
-var BoolStruct = &Struct{
-	Name: "bool",
+
+func (s *Struct) SetTypeString(str string) {
+
+}
+
+func (s *Struct) SetPointer(b bool) {
+
+}
+
+func (s *Struct) SetPrivate(b bool) {
+
+}
+
+func (s *Struct) SetSlice(b bool) {
+
+}
+
+func (s *Struct) SetPackagePath(str string) {
+	s.PackagePath = str
+}
+
+func (s *Struct) AppendFields(fields []*StructField) {
+	s.Fields = append(s.Fields, fields...)
 }
 
 func (s *Struct) GetName() string {

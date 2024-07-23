@@ -15,6 +15,42 @@ type Method struct {
 	method      any
 }
 
+func (m *Method) SetType(namer *Struct) {
+
+}
+
+func (m *Method) SetInnerType(b bool) {
+
+}
+
+func (m *Method) SetIsStruct(b bool) {
+
+}
+
+func (m *Method) SetTypeString(s string) {
+
+}
+
+func (m *Method) SetPointer(b bool) {
+
+}
+
+func (m *Method) SetPrivate(b bool) {
+
+}
+
+func (m *Method) SetSlice(b bool) {
+
+}
+
+func (m *Method) SetPackagePath(s string) {
+
+}
+
+func (m *Method) GetType() *Struct {
+	return nil
+}
+
 func (m *Method) GetMethod() any {
 	return m.method
 }
