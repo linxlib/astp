@@ -49,7 +49,7 @@ func (v *Var) SetSlice(b bool) {
 }
 
 func (v *Var) SetType(namer *Struct) {
-	v.Type = namer
+	v.Type = namer.Clone()
 }
 
 func (v *Var) GetName() string {

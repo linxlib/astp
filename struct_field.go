@@ -67,7 +67,7 @@ func (f *StructField) SetSlice(b bool) {
 }
 
 func (f *StructField) SetType(namer *Struct) {
-	f.Type = namer
+	f.Type = namer.Clone()
 }
 
 func (f *StructField) GetTag(tag string) string {

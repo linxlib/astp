@@ -16,6 +16,21 @@ type Struct struct {
 	Comment     string   //注释
 }
 
+func (s *Struct) Clone() *Struct {
+	if s == nil {
+		return nil
+	}
+	return &Struct{
+		Name:        s.Name,
+		PackagePath: s.PackagePath,
+		KeyHash:     s.KeyHash,
+		//Fields:      s.Fields,
+		//Methods:     s.Methods,
+		IsInterface: s.IsInterface,
+		Docs:        s.Docs,
+		Comment:     s.Comment,
+	}
+}
 func (s *Struct) GetType() *Struct {
 	return s
 }

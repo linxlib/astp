@@ -15,7 +15,7 @@ type Const struct {
 }
 
 func (c *Const) SetType(namer *Struct) {
-	c.Type = namer
+	c.Type = namer.Clone()
 }
 
 func (c *Const) GetType() *Struct {

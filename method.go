@@ -10,8 +10,8 @@ type Method struct {
 	Signature   string
 	Docs        []string
 	Comments    string
-	Params      []*StructField
-	Results     []*StructField
+	Params      []*ParamField
+	Results     []*ParamField
 	method      any
 }
 

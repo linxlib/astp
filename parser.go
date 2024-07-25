@@ -88,6 +88,7 @@ func (p *Parser) WriteOut() error {
 	defer p.lock.Unlock()
 
 	var buf bytes.Buffer
+	//jsonData, err := json.MarshalIndent(p.Files, "", " ")
 	encoder := json.NewEncoder(&buf)
 	err := encoder.Encode(p.Files)
 	if err != nil {
@@ -431,7 +432,7 @@ func (p *Parser) parseMethods(s *Struct, af *ast.File, file *File) []*Method {
 					// 只解析当前结构体的方法
 					if decl1.X.(*ast.Ident).Name == s.Name {
 						recv.Name = decl.Recv.List[0].Names[0].Name
-						recv.Type = s
+						recv.Type = s.Clone()
 						recv.Pointer = true
 						recv.TypeString = decl1.X.(*ast.Ident).Name
 					}
@@ -439,7 +440,7 @@ func (p *Parser) parseMethods(s *Struct, af *ast.File, file *File) []*Method {
 					// 只解析当前结构体的方法
 					if decl1.Name == s.Name {
 						recv.Name = decl.Recv.List[0].Names[0].Name
-						recv.Type = s
+						recv.Type = s.Clone()
 						recv.Pointer = false
 						recv.TypeString = decl1.Name
 					}
@@ -473,15 +474,15 @@ func (p *Parser) parseMethods(s *Struct, af *ast.File, file *File) []*Method {
 }
 
 // parseParams 解析参数
-func (p *Parser) parseParams(file *File, params *ast.FieldList) []*StructField {
+func (p *Parser) parseParams(file *File, params *ast.FieldList) []*ParamField {
 	if params == nil {
 		return nil
 	}
-	pars := make([]*StructField, len(params.List))
+	pars := make([]*ParamField, len(params.List))
 
 	for index, param := range params.List {
 		for idx, name := range param.Names {
-			par := &StructField{
+			par := &ParamField{
 				Index:       idx,
 				Name:        name.Name,
 				PackagePath: file.PackagePath,
@@ -510,16 +511,16 @@ func (p *Parser) parseParams(file *File, params *ast.FieldList) []*StructField {
 }
 
 // parseResults 解析返回值
-func (p *Parser) parseResults(file *File, params *ast.FieldList) []*StructField {
+func (p *Parser) parseResults(file *File, params *ast.FieldList) []*ParamField {
 	if params == nil {
 		return nil
 	}
-	pars := make([]*StructField, len(params.List))
+	pars := make([]*ParamField, len(params.List))
 
 	for index, param := range params.List {
 		if param.Names != nil {
 			for idx, name := range param.Names {
-				par := &StructField{
+				par := &ParamField{
 					Index:       idx,
 					Name:        name.Name,
 					PackagePath: file.PackagePath,
@@ -544,7 +545,7 @@ func (p *Parser) parseResults(file *File, params *ast.FieldList) []*StructField 
 
 			}
 		} else { //返回值可能为隐式参数
-			par := &StructField{
+			par := &ParamField{
 				Index:       0,
 				Name:        "",
 				PackagePath: "",
@@ -1033,11 +1034,13 @@ func (p *Parser) parseFields(file *File, fields []*ast.Field) []*StructField {
 	return sf
 }
 
-func (p *Parser) VisitAllStructs(name string, f func(s *Struct)) {
+func (p *Parser) VisitAllStructs(name string, f func(s *Struct) bool) {
 	for _, file := range p.Files {
 		for _, s := range file.Structs {
 			if s.Name == name {
-				f(s)
+				if f(s) == true {
+					return
+				}
 			}
 		}
 

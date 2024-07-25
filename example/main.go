@@ -8,8 +8,11 @@ import (
 func main() {
 	p := astp.NewParser()
 	p.Parse()
-	p.WriteOut()
-	p1 := astp.NewParser()
-	p1.Load()
-	fmt.Println()
+	err := p.WriteOut()
+	if err != nil {
+		fmt.Println(err)
+	}
+	//p1 := astp.NewParser()
+	//p1.Load()
+	//fmt.Println()
 }
