@@ -99,6 +99,17 @@ func (p *Parser) WriteOut(filename string) error {
 func (p *Parser) Parse() {
 	f, key := p.parseFile("./main.go")
 	p.Files[key] = f
+
+	for _, file := range p.Files {
+		for _, s := range file.Structs {
+			s.SetThisPackageTypeParams2(p.Files)
+			s.SetThisPackageFields2(p.Files)
+			s.SetThisPackageMethodParams2(p.Files)
+
+		}
+
+	}
+
 }
 
 // isParsed 判断一个文件是否已经缓存
@@ -141,6 +152,22 @@ func (p *Parser) parseDir(dir string) map[string]*File {
 
 	}
 
+	return files
+}
+
+func (p *Parser) parseDir2(dir string, pkg string) map[string]*File {
+	files := make(map[string]*File)
+
+	fs, _ := os.ReadDir(dir)
+	//在一个package对应的目录下，遍历所有文件 找到对应的文件
+	for _, file := range fs {
+		b := filepath.Base(file.Name())
+		key := internal.GetKey(pkg, b)
+
+		if v, ok := p.Files[key]; ok { //根据文件key，找到了对应的文件（已在其他地方解析过）
+			files[key] = v
+		}
+	}
 	return files
 }
 
@@ -414,10 +441,12 @@ func (p *Parser) parseStructs(file *File, af *ast.File) {
 			}
 		}
 	}
+
 	for _, s := range file.Structs {
 		s.SetThisPackageTypeParams(file)
 		s.SetThisPackageFields(file)
 		s.SetThisPackageMethodParams(file)
+
 	}
 
 }
@@ -434,12 +463,23 @@ func (p *Parser) parseMethods(s *Struct, af *ast.File, file *File) []*Method {
 				switch decl1 := decl.Recv.List[0].Type.(type) {
 				case *ast.StarExpr:
 					// 只解析当前结构体的方法
-					if decl1.X.(*ast.Ident).Name == s.Name {
-						recv.Name = decl.Recv.List[0].Names[0].Name
-						recv.Type = s.Clone()
-						recv.Pointer = true
-						recv.TypeString = decl1.X.(*ast.Ident).Name
+					switch spec := decl1.X.(type) {
+					case *ast.Ident:
+						if spec.Name == s.Name {
+							recv.Name = decl.Recv.List[0].Names[0].Name
+							recv.Type = s.Clone()
+							recv.Pointer = true
+							recv.TypeString = decl1.X.(*ast.Ident).Name
+						}
+					case *ast.IndexExpr:
+						if spec.X.(*ast.Ident).Name == s.Name {
+							recv.Name = decl.Recv.List[0].Names[0].Name
+							recv.Type = s.Clone()
+							recv.Pointer = true
+							recv.TypeString = decl1.X.(*ast.IndexExpr).X.(*ast.Ident).Name
+						}
 					}
+
 				case *ast.Ident:
 					// 只解析当前结构体的方法
 					if decl1.Name == s.Name {
@@ -1032,7 +1072,13 @@ func (p *Parser) parseTypeParams(file *File, list *ast.FieldList) []*TypeParam {
 		for _, name := range field.Names {
 			t := new(TypeParam)
 			t.Name = name.Name
-			t.TypeName = field.Type.(*ast.Ident).Name
+			switch spec := field.Type.(type) {
+			case *ast.Ident:
+				t.TypeName = spec.Name
+
+			case *ast.IndexExpr:
+				t.TypeName = spec.X.(*ast.Ident).Name
+			}
 			t.SetPackagePath("this")
 
 			result = append(result, t)

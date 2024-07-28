@@ -105,6 +105,24 @@ func (s *Struct) GetAllFieldsByTag(tag string) []*StructField {
 	}
 	return rtn
 }
+
+func (s *Struct) SetThisPackageTypeParams2(files map[string]*File) {
+	for _, param := range s.TypeParams {
+		if param.PackagePath == "this" {
+			for _, file := range files {
+				for _, s2 := range file.Structs {
+					if s2.Name == strings.TrimLeft(param.TypeName, "*") {
+						param.SetType(s2)
+						param.SetPackagePath(s2.PackagePath)
+						return
+					}
+				}
+			}
+
+		}
+	}
+}
+
 func (s *Struct) SetThisPackageTypeParams(file *File) {
 	for _, param := range s.TypeParams {
 		if param.PackagePath == "this" {
@@ -117,6 +135,46 @@ func (s *Struct) SetThisPackageTypeParams(file *File) {
 		}
 	}
 }
+func (s *Struct) SetThisPackageFields2(files map[string]*File) {
+	for _, field := range s.Fields {
+		if field.PackagePath == "this" {
+			if s.IsGeneric {
+				for _, param := range s.TypeParams {
+					if field.TypeString == param.Name {
+						field.SetType(param.Type)
+						field.SetPackagePath(param.PackagePath)
+						return
+					}
+				}
+
+			} else {
+				for _, file := range files {
+					for _, s2 := range file.Structs {
+						realTypeName := strings.TrimLeft(field.TypeString, "*")
+						index := strings.LastIndex(realTypeName, "[")
+						if index > 0 {
+							realTypeName = realTypeName[:index]
+						}
+
+						if strings.EqualFold(realTypeName, s2.Name) {
+							field.SetType(s2)
+							field.SetPackagePath(s2.PackagePath)
+							s.Methods = append(s.Methods, s2.Methods...)
+							s.Docs = append(s.Docs, s2.Docs...)
+							return
+
+						}
+
+					}
+				}
+
+			}
+
+		}
+	}
+}
+
+// TODO: 这里不仅仅是当前文件，还有可能是当前目录下的其他文件
 func (s *Struct) SetThisPackageFields(file *File) {
 	for _, field := range s.Fields {
 		if field.PackagePath == "this" {
@@ -130,13 +188,71 @@ func (s *Struct) SetThisPackageFields(file *File) {
 
 			} else {
 				for _, s2 := range file.Structs {
-					if s2.Name == strings.TrimLeft(field.TypeString, "*") {
+					realTypeName := strings.TrimLeft(field.TypeString, "*")
+					index := strings.LastIndex(realTypeName, "[")
+					if index > 0 {
+						realTypeName = realTypeName[:index]
+					}
+
+					if strings.EqualFold(realTypeName, s2.Name) {
 						field.SetType(s2)
 						field.SetPackagePath(s2.PackagePath)
+						s.Methods = append(s.Methods, s2.Methods...)
+						s.Docs = append(s.Docs, s2.Docs...)
+
 					}
+
 				}
 			}
 
+		}
+	}
+}
+func (s *Struct) SetThisPackageMethodParams2(files map[string]*File) {
+	for _, method := range s.Methods {
+		for _, param := range method.Params {
+			if param.PackagePath == "this" {
+				if method.IsGeneric && method.TypeParams != nil && len(method.TypeParams) > 0 {
+					for _, typeParam := range method.TypeParams {
+						if typeParam.Name == param.TypeString {
+							method.SetParamType(param, typeParam.Type)
+						}
+					}
+				} else {
+					for _, file := range files {
+						for _, s2 := range file.Structs {
+							realTypeName := strings.TrimLeft(param.TypeString, "*")
+							index := strings.LastIndex(realTypeName, "[")
+							if index > 0 {
+								realTypeName = realTypeName[:index]
+							}
+
+							if strings.EqualFold(realTypeName, s2.Name) {
+								param.SetType(s2)
+								param.SetPackagePath(s2.PackagePath)
+								return
+							}
+
+						}
+					}
+
+				}
+
+			}
+		}
+		for _, param := range method.Results {
+			if param.PackagePath == "this" {
+				for _, file := range files {
+					for _, s2 := range file.Structs {
+						if s2.Name == strings.TrimLeft(param.TypeString, "*") {
+							param.Type = s2
+							param.PackagePath = s2.PackagePath
+							return
+						}
+					}
+				}
+
+			}
 		}
 	}
 }

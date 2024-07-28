@@ -8,7 +8,7 @@ import (
 func main() {
 	p := astp.NewParser()
 	p.Parse()
-	err := p.WriteOut()
+	err := p.WriteOut("gen.json")
 	if err != nil {
 		fmt.Println(err)
 	}
