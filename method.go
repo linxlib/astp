@@ -12,7 +12,34 @@ type Method struct {
 	Comments    string
 	Params      []*ParamField
 	Results     []*ParamField
+	IsGeneric   bool
+	TypeParams  []*TypeParam
 	method      any
+}
+
+func (m *Method) SetActualType(name string, as *Struct) {
+	if m.IsGeneric && len(m.TypeParams) > 0 {
+		for _, param := range m.TypeParams {
+			if param.Name != name {
+				param.ActualType = as.Clone()
+			}
+		}
+	}
+}
+func (m *Method) IsGenericType(name string) bool {
+	for _, param := range m.TypeParams {
+		if param.Name == name {
+			return true
+		}
+	}
+	return false
+}
+func (m *Method) SetParamType(field *ParamField, as *Struct) {
+	if as != nil {
+		field.Type = as.Clone()
+		field.PackagePath = field.Type.PackagePath
+	}
+
 }
 
 func (m *Method) SetType(namer *Struct) {

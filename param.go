@@ -19,6 +19,7 @@ type ParamField struct {
 	IsStruct    bool              //是否结构体
 	Docs        []string          //文档
 	Comment     string            //注释
+	IsGeneric   bool
 }
 
 func CopyFromStructField(sf *StructField) *ParamField {

@@ -12,8 +12,29 @@ type Struct struct {
 	Fields      []*StructField //结构体字段
 	Methods     []*Method      //结构体方法
 	IsInterface bool
+	Inter       *Interface
 	Docs        []string //文档
 	Comment     string   //注释
+	IsGeneric   bool
+	TypeParams  []*TypeParam
+}
+
+func (s *Struct) SetActualType(name string, as *Struct) {
+	if s.IsGeneric && len(s.TypeParams) > 0 {
+		for _, param := range s.TypeParams {
+			if param.Name != name {
+				param.ActualType = as.Clone()
+			}
+		}
+	}
+}
+func (s *Struct) IsGenericType(name string) bool {
+	for _, param := range s.TypeParams {
+		if param.Name == name {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *Struct) Clone() *Struct {
@@ -84,28 +105,68 @@ func (s *Struct) GetAllFieldsByTag(tag string) []*StructField {
 	}
 	return rtn
 }
-func (s *Struct) SetThisPackageFields(file *File) {
-	for _, field := range s.Fields {
-		if field.PackagePath == "this" {
+func (s *Struct) SetThisPackageTypeParams(file *File) {
+	for _, param := range s.TypeParams {
+		if param.PackagePath == "this" {
 			for _, s2 := range file.Structs {
-				if s2.Name == strings.TrimLeft(field.TypeString, "*") {
-					field.Type = s2
-					field.PackagePath = s2.PackagePath
+				if s2.Name == strings.TrimLeft(param.TypeName, "*") {
+					param.SetType(s2)
+					param.SetPackagePath(s2.PackagePath)
 				}
 			}
 		}
 	}
 }
+func (s *Struct) SetThisPackageFields(file *File) {
+	for _, field := range s.Fields {
+		if field.PackagePath == "this" {
+			if s.IsGeneric {
+				for _, param := range s.TypeParams {
+					if field.TypeString == param.Name {
+						field.SetType(param.Type)
+						field.SetPackagePath(param.PackagePath)
+					}
+				}
+
+			} else {
+				for _, s2 := range file.Structs {
+					if s2.Name == strings.TrimLeft(field.TypeString, "*") {
+						field.SetType(s2)
+						field.SetPackagePath(s2.PackagePath)
+					}
+				}
+			}
+
+		}
+	}
+}
+
 func (s *Struct) SetThisPackageMethodParams(file *File) {
 	for _, method := range s.Methods {
 		for _, param := range method.Params {
 			if param.PackagePath == "this" {
-				for _, s2 := range file.Structs {
-					if s2.Name == strings.TrimLeft(param.TypeString, "*") {
-						param.Type = s2
-						param.PackagePath = s2.PackagePath
+				if method.IsGeneric && method.TypeParams != nil && len(method.TypeParams) > 0 {
+					for _, typeParam := range method.TypeParams {
+						if typeParam.Name == param.TypeString {
+							method.SetParamType(param, typeParam.Type)
+						}
+					}
+				} else {
+					for _, s2 := range file.Structs {
+						realTypeName := strings.TrimLeft(param.TypeString, "*")
+						index := strings.LastIndex(realTypeName, "[")
+						if index > 0 {
+							realTypeName = realTypeName[:index]
+						}
+
+						if strings.EqualFold(realTypeName, s2.Name) {
+							param.SetType(s2)
+							param.SetPackagePath(s2.PackagePath)
+						}
+
 					}
 				}
+
 			}
 		}
 		for _, param := range method.Results {

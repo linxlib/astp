@@ -72,29 +72,27 @@ func NewParser() (p *Parser) {
 	return p
 }
 
-func (p *Parser) Load() {
-	if internal.FileIsExist("gen.json") {
-		data := internal.ReadFile("gen.json")
+func (p *Parser) Load(f string) {
+	if internal.FileIsExist(f) {
+		data := internal.ReadFile(f)
 
 		var buf = bytes.NewBuffer(data)
 		dec := json.NewDecoder(buf)
 		_ = dec.Decode(&p.Files)
-
 	}
 }
 
-func (p *Parser) WriteOut() error {
+func (p *Parser) WriteOut(filename string) error {
 	p.lock.Lock()
 	defer p.lock.Unlock()
 
 	var buf bytes.Buffer
-	//jsonData, err := json.MarshalIndent(p.Files, "", " ")
 	encoder := json.NewEncoder(&buf)
 	err := encoder.Encode(p.Files)
 	if err != nil {
 		return err
 	}
-	internal.WriteFile("gen.json", buf.Bytes(), true)
+	internal.WriteFile(filename, buf.Bytes(), true)
 	return nil
 }
 
@@ -383,6 +381,10 @@ func (p *Parser) parseStructs(file *File, af *ast.File) {
 
 						}
 						a.Comment = internal.GetComment(spec.Comment)
+						if spec.TypeParams != nil {
+							a.IsGeneric = true
+							a.TypeParams = p.parseTypeParams(file, spec.TypeParams)
+						}
 						switch spec1 := spec.Type.(type) {
 						case *ast.StructType:
 							{
@@ -398,11 +400,12 @@ func (p *Parser) parseStructs(file *File, af *ast.File) {
 						case *ast.InterfaceType:
 							a.IsInterface = true
 
-							methods := p.parseInterfaces(a, spec1.Methods.List, file)
-							if file.Methods == nil {
-								file.Methods = make([]*Method, 0)
-							}
-							file.Methods = append(file.Methods, methods...)
+							interfaceStruct := p.parseInterfaces(a, spec1.Methods.List, file)
+							a.Inter = interfaceStruct
+							//if file.Methods == nil {
+							//	file.Methods = make([]*Method, 0)
+							//}
+							//file.Methods = append(file.Methods, interfaceStruct.Methods...)
 						}
 						file.Structs = append(file.Structs, a)
 
@@ -412,6 +415,7 @@ func (p *Parser) parseStructs(file *File, af *ast.File) {
 		}
 	}
 	for _, s := range file.Structs {
+		s.SetThisPackageTypeParams(file)
 		s.SetThisPackageFields(file)
 		s.SetThisPackageMethodParams(file)
 	}
@@ -587,8 +591,12 @@ func (p *Parser) parseFunction(file *File, af *ast.File) {
 					Results:     nil,
 				}
 				method.Name = decl.Name.Name
+				if decl.Type.TypeParams != nil {
+					method.TypeParams = p.parseTypeParams(file, decl.Type.TypeParams)
+				}
 				method.Private = internal.IsPrivate(method.Name)
 				method.Params = p.parseParams(file, decl.Type.Params)
+
 				method.Results = p.parseResults(file, decl.Type.Results)
 				methods = append(methods, method)
 			}
@@ -599,8 +607,10 @@ func (p *Parser) parseFunction(file *File, af *ast.File) {
 }
 
 // parseInterfaces 解析接口
-func (p *Parser) parseInterfaces(s *Struct, af []*ast.Field, file *File) []*Method {
-	methods := make([]*Method, 0)
+func (p *Parser) parseInterfaces(s *Struct, af []*ast.Field, file *File) *Interface {
+	result := new(Interface)
+	result.Methods = make([]*Method, 0)
+	result.Constraints = []string{}
 	for _, field := range af {
 		switch spec := field.Type.(type) {
 		case *ast.FuncType:
@@ -616,14 +626,16 @@ func (p *Parser) parseInterfaces(s *Struct, af []*ast.Field, file *File) []*Meth
 				Results:     p.parseResults(file, spec.Results),
 			}
 
-			methods = append(methods, method)
+			result.Methods = append(result.Methods, method)
 		default:
-
+			p.parseInterfaceContraints(field, result)
 		}
 	}
 
-	s.Methods = methods
-	return methods
+	return result
+}
+func (p *Parser) parseInterfaceContraints(expr *ast.Field, p2 *Interface) {
+	p2.Constraints = append(p2.Constraints, "fuck!!!! here is type constraints!")
 }
 
 func (p *Parser) parseIdent(spec *ast.Ident, name string, snamer ISetTypeNamer) {
@@ -669,6 +681,19 @@ func (p *Parser) parseSelector(spec *ast.SelectorExpr, name string, imports []*I
 }
 func (p *Parser) parseStar(spec *ast.StarExpr, name string, imports []*Import, snamer ISetTypeNamer) {
 	switch spec := spec.X.(type) {
+	case *ast.IndexExpr:
+		switch spec1 := spec.X.(type) {
+		case *ast.Ident:
+			//fmt.Println(spec1.Name)
+			snamer.SetTypeString(spec1.Name + "[" + spec.Index.(*ast.Ident).Name + "]")
+			snamer.SetSlice(false)
+			snamer.SetPackagePath("this")
+			snamer.SetType(nil)
+			snamer.SetPrivate(internal.IsPrivate(name))
+			snamer.SetPointer(true)
+		case *ast.SelectorExpr:
+		case *ast.StarExpr:
+		}
 	case *ast.Ident: //指针的内置类型
 		if internal.IsInternalType(spec.Name) {
 			snamer.SetIsStruct(false)
@@ -998,6 +1023,23 @@ func (p *Parser) parseOther(t ast.Expr, name string, imports []*Import, snamer I
 
 	}
 
+}
+func (p *Parser) parseTypeParams(file *File, list *ast.FieldList) []*TypeParam {
+	result := make([]*TypeParam, 0)
+
+	for _, field := range list.List {
+
+		for _, name := range field.Names {
+			t := new(TypeParam)
+			t.Name = name.Name
+			t.TypeName = field.Type.(*ast.Ident).Name
+			t.SetPackagePath("this")
+
+			result = append(result, t)
+		}
+
+	}
+	return result
 }
 
 // parseFields 解析字段
