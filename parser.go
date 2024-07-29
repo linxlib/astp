@@ -28,6 +28,14 @@ type ISetTypeNamer interface {
 	SetPackagePath(s string)
 	GetType() *Struct
 }
+type PPackage string
+type PFileKey string
+
+// TODO
+
+// AstFile
+// 把整体结构根据包归集，方便在包下查找
+type AstFile map[PPackage]map[PFileKey]*File
 
 // 这里解析完之后的输出内容，可以为生成一个go文件，这个文件里包含了为当前这个对象赋值的语句
 // 这样可以防止 如果生成文件，别人没拷贝文件 就尴尬了
@@ -41,10 +49,12 @@ type Parser struct {
 	modDir string //mod目录
 	modPkg string //mod
 
+	//TODO
+
 	sdkPath string //go sdk的源码根目录 eg. C:\Users\<UserName>\sdk\go1.21.0\src\builtin
 	modPath string //本地mod的目录  eg. C:\Users\<UserName>\go\pkg\mod
 
-	pkgWhiteList map[string]bool //包白名单，会在sdkPath或者modPath中找文件并解析
+	//pkgWhiteList map[string]bool //包白名单，会在sdkPath或者modPath中找文件并解析
 
 }
 
@@ -151,22 +161,6 @@ func (p *Parser) parseDir(dir string) map[string]*File {
 	return files
 }
 
-func (p *Parser) parseDir2(dir string, pkg string) map[string]*File {
-	files := make(map[string]*File)
-
-	fs, _ := os.ReadDir(dir)
-	//在一个package对应的目录下，遍历所有文件 找到对应的文件
-	for _, file := range fs {
-		b := filepath.Base(file.Name())
-		key := internal.GetKey(pkg, b)
-
-		if v, ok := p.Files[key]; ok { //根据文件key，找到了对应的文件（已在其他地方解析过）
-			files[key] = v
-		}
-	}
-	return files
-}
-
 // parseFile 解析一个go文件
 func (p *Parser) parseFile(file string) (*File, string) {
 	name := filepath.Base(file)
@@ -194,12 +188,10 @@ func (p *Parser) parseFile(file string) (*File, string) {
 func (p *Parser) parsePackages(file *File, af *ast.File) {
 	file.PackageName = af.Name.Name
 	file.Docs = internal.GetDocs(af.Doc)
+
 	if af.Comments != nil {
 		for _, comment := range af.Comments {
-			if comment.List != nil {
-				file.Comments = append(file.Comments, strings.TrimLeft(comment.Text(), "//"))
-			}
-
+			file.Comments = append(file.Comments, internal.GetComments(comment)...)
 		}
 	}
 }
@@ -529,12 +521,13 @@ func (p *Parser) parseParams(file *File, params *ast.FieldList) []*ParamField {
 	if params == nil {
 		return nil
 	}
-	pars := make([]*ParamField, len(params.List))
+	pars := make([]*ParamField, 0)
+	var pIndex int
 
-	for index, param := range params.List {
-		for idx, name := range param.Names {
+	for _, param := range params.List {
+		for _, name := range param.Names {
 			par := &ParamField{
-				Index:       idx,
+				Index:       pIndex,
 				Name:        name.Name,
 				PackagePath: file.PackagePath,
 				Type:        nil,
@@ -554,8 +547,8 @@ func (p *Parser) parseParams(file *File, params *ast.FieldList) []*ParamField {
 			//TODO: 要考虑  （a,b string） 这样的参数形式
 			p.parseOther(param.Type, name.Name, file.Imports, par)
 
-			pars[index] = par
-
+			pars = append(pars, par)
+			pIndex++
 		}
 	}
 	return pars
@@ -566,13 +559,13 @@ func (p *Parser) parseResults(file *File, params *ast.FieldList) []*ParamField {
 	if params == nil {
 		return nil
 	}
-	pars := make([]*ParamField, len(params.List))
-
-	for index, param := range params.List {
+	pars := make([]*ParamField, 0)
+	var pIndex int
+	for _, param := range params.List {
 		if param.Names != nil {
-			for idx, name := range param.Names {
+			for _, name := range param.Names {
 				par := &ParamField{
-					Index:       idx,
+					Index:       pIndex,
 					Name:        name.Name,
 					PackagePath: file.PackagePath,
 					Type:        nil,
@@ -592,12 +585,13 @@ func (p *Parser) parseResults(file *File, params *ast.FieldList) []*ParamField {
 				//TODO: 要考虑  （a,b string） 这样的返回值形式
 				p.parseOther(param.Type, name.Name, file.Imports, par)
 
-				pars[index] = par
-
+				pars = append(pars, par)
+				pIndex++
 			}
 		} else { //返回值可能为隐式参数
+
 			par := &ParamField{
-				Index:       0,
+				Index:       pIndex,
 				Name:        "",
 				PackagePath: "",
 				Type:        nil,
@@ -613,7 +607,8 @@ func (p *Parser) parseResults(file *File, params *ast.FieldList) []*ParamField {
 				Comment:     "",
 			}
 			p.parseOther(param.Type, "", file.Imports, par)
-			pars[index] = par
+			pars = append(pars, par)
+			pIndex++
 		}
 
 	}
@@ -739,7 +734,13 @@ func (p *Parser) parseStar(spec *ast.StarExpr, name string, imports []*Import, s
 			snamer.SetPrivate(internal.IsPrivate(name))
 			snamer.SetPointer(true)
 		case *ast.SelectorExpr:
-			snamer.SetTypeString(spec1.Sel.Name + "[" + spec.Index.(*ast.SelectorExpr).X.(*ast.Ident).Name + "." + spec.Index.(*ast.SelectorExpr).Sel.Name + "]")
+			switch spec2 := spec.Index.(type) {
+			case *ast.Ident:
+				snamer.SetTypeString(spec1.Sel.Name + "[" + spec2.Name + "]")
+			case *ast.SelectorExpr:
+				snamer.SetTypeString(spec1.Sel.Name + "[" + spec2.X.(*ast.Ident).Name + "." + spec2.Sel.Name + "]")
+
+			}
 			snamer.SetSlice(false)
 			snamer.SetPackagePath("")
 			snamer.SetPrivate(true)
