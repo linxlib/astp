@@ -40,7 +40,24 @@ func CopyFromStructField(sf *StructField) *ParamField {
 	p.PackagePath = sf.PackagePath
 	return p
 }
-
+func (p *ParamField) Clone() *ParamField {
+	return &ParamField{
+		Index:       p.Index,
+		Name:        p.Name,
+		PackagePath: p.PackagePath,
+		Type:        p.Type.Clone(),
+		InnerType:   p.InnerType,
+		Docs:        p.Docs,
+		Comment:     p.Comment,
+		HasTag:      p.HasTag,
+		Tag:         p.Tag,
+		TypeString:  p.TypeString,
+		IsStruct:    p.IsStruct,
+		Private:     p.Private,
+		Slice:       p.Slice,
+		IsGeneric:   p.IsGeneric,
+	}
+}
 func (p *ParamField) GetName() string {
 	return p.Name
 }

@@ -7,3 +7,12 @@ type Receiver struct {
 	TypeString string  //类型名
 	Type       *Struct //类型
 }
+
+func (r *Receiver) Clone() *Receiver {
+	return &Receiver{
+		Name:       r.Name,
+		Pointer:    r.Pointer,
+		TypeString: r.TypeString,
+		Type:       r.Type.Clone(),
+	}
+}

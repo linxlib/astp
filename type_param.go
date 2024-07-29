@@ -8,6 +8,15 @@ type TypeParam struct {
 	ActualType  *Struct //实际类型
 }
 
+func (t *TypeParam) Clone() *TypeParam {
+	return &TypeParam{
+		Name:        t.Name,
+		PackagePath: t.PackagePath,
+		TypeName:    t.TypeName,
+		Type:        t.Type.Clone(),
+		ActualType:  t.ActualType.Clone(),
+	}
+}
 func (t *TypeParam) GetName() string {
 	return t.Name
 }

@@ -6,8 +6,9 @@ import (
 
 // StructField 结构体字段
 type StructField struct {
-	Index       int     //索引
-	Name        string  //字段名
+	Index       int    //索引
+	Name        string //字段名
+	IsParent    bool
 	PackagePath string  //包名
 	Type        *Struct //类型
 	rType       reflect.Type

@@ -102,12 +102,8 @@ func (p *Parser) Parse() {
 
 	for _, file := range p.Files {
 		for _, s := range file.Structs {
-			s.SetThisPackageTypeParams2(p.Files)
-			s.SetThisPackageFields2(p.Files)
-			s.SetThisPackageMethodParams2(p.Files)
-
+			s.HandleCurrentPackageRefs(p.Files)
 		}
-
 	}
 
 }
@@ -416,7 +412,21 @@ func (p *Parser) parseStructs(file *File, af *ast.File) {
 						case *ast.StructType:
 							{
 								a.Fields = p.parseFields(file, spec1.Fields.List)
+
 								methods := p.parseMethods(a, af, file)
+								a.Methods = append(a.Methods, methods...)
+								for _, field := range a.Fields {
+									if field.IsParent {
+										a.HasParent = true
+										// TODO: only export method
+										if field.Type != nil && field.PackagePath != "this" && len(field.Type.Methods) > 0 {
+											a.Methods = append(a.Methods, field.Type.Methods...)
+											a.Docs = append(a.Docs, field.Type.Docs...)
+										}
+
+									}
+								}
+
 								if file.Methods == nil {
 									file.Methods = make([]*Method, 0)
 								}
@@ -443,10 +453,7 @@ func (p *Parser) parseStructs(file *File, af *ast.File) {
 	}
 
 	for _, s := range file.Structs {
-		s.SetThisPackageTypeParams(file)
-		s.SetThisPackageFields(file)
-		s.SetThisPackageMethodParams(file)
-
+		s.HandleCurrentPackageRef(file)
 	}
 
 }
@@ -513,7 +520,7 @@ func (p *Parser) parseMethods(s *Struct, af *ast.File, file *File) []*Method {
 
 		}
 	}
-	s.Methods = methods
+	//s.Methods = methods
 	return methods
 }
 
@@ -732,6 +739,26 @@ func (p *Parser) parseStar(spec *ast.StarExpr, name string, imports []*Import, s
 			snamer.SetPrivate(internal.IsPrivate(name))
 			snamer.SetPointer(true)
 		case *ast.SelectorExpr:
+			snamer.SetTypeString(spec1.Sel.Name + "[" + spec.Index.(*ast.SelectorExpr).X.(*ast.Ident).Name + "." + spec.Index.(*ast.SelectorExpr).Sel.Name + "]")
+			snamer.SetSlice(false)
+			snamer.SetPackagePath("")
+			snamer.SetPrivate(true)
+			snamer.SetPointer(internal.IsPrivate(name))
+			pkgName := spec1.X.(*ast.Ident).Name
+			typeName := spec1.Sel.Name
+			for _, i3 := range imports {
+				if i3.Name == pkgName {
+					snamer.SetPackagePath(i3.ImportPath)
+					namer := p.findFileByPackageAndType(i3.ImportPath, typeName)
+					if namer != nil {
+						snamer.SetType(namer.GetType())
+					} else {
+						snamer.SetInnerType(true)
+					}
+
+					//snamer.SetTypeString("*" + pkgName + "." + typeName)
+				}
+			}
 		case *ast.StarExpr:
 		}
 	case *ast.Ident: //指针的内置类型
@@ -1059,6 +1086,8 @@ func (p *Parser) parseOther(t ast.Expr, name string, imports []*Import, snamer I
 		p.parseArrOrEll(spec, name, imports, snamer)
 	case *ast.MapType:
 		p.parseMap(spec, name, imports, snamer)
+	case *ast.IndexExpr:
+		p.parseIndex(spec, name, imports, snamer)
 	default:
 
 	}
@@ -1077,7 +1106,15 @@ func (p *Parser) parseTypeParams(file *File, list *ast.FieldList) []*TypeParam {
 				t.TypeName = spec.Name
 
 			case *ast.IndexExpr:
-				t.TypeName = spec.X.(*ast.Ident).Name
+				switch spec := spec.X.(type) {
+				case *ast.Ident:
+					t.TypeName = spec.Name
+				case *ast.SelectorExpr:
+					t.TypeName = spec.Sel.Name
+				}
+
+			case *ast.SelectorExpr:
+				t.TypeName = spec.Sel.Name
 			}
 			t.SetPackagePath("this")
 
@@ -1100,6 +1137,7 @@ func (p *Parser) parseFields(file *File, fields []*ast.Field) []*StructField {
 
 		p.parseOther(field.Type, a.Name, file.Imports, a)
 		if a.Name == "" {
+			a.IsParent = true
 			// 将继承的字段合并到当前结构
 			if f := a.GetType(); f != nil {
 				sf = append(sf, f.Fields...)
@@ -1131,6 +1169,16 @@ func (p *Parser) VisitAllStructs(name string, f func(s *Struct) bool) {
 				}
 			}
 		}
+
+	}
+}
+
+func (p *Parser) parseIndex(spec *ast.IndexExpr, name string, imports []*Import, snamer ISetTypeNamer) {
+	switch spec := spec.X.(type) {
+	case *ast.Ident:
+		p.parseIdent(spec, name, snamer)
+	case *ast.SelectorExpr:
+		p.parseSelector(spec, name, imports, snamer)
 
 	}
 }

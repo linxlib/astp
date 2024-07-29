@@ -4,7 +4,7 @@ import "strings"
 
 func IsPrivate(s string) bool {
 	if s == "" {
-		return false
+		return true
 	}
 	return strings.ToLower(string(s[0])) == string(s[0])
 }

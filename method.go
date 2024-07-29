@@ -17,6 +17,36 @@ type Method struct {
 	method      any
 }
 
+func (m *Method) Clone() *Method {
+	m1 := &Method{
+		Receiver:    m.Receiver.Clone(),
+		Index:       m.Index,
+		PackagePath: m.PackagePath,
+		Name:        m.Name,
+		Private:     m.Private,
+		Signature:   m.Signature,
+		Docs:        m.Docs,
+		Comments:    m.Comments,
+		//Params:      m.Params,
+		//Results:     m.Results,
+		IsGeneric: m.IsGeneric,
+		//TypeParams:  m.TypeParams,
+		//method:      m.method,
+	}
+	m1.Params = make([]*ParamField, len(m.Params))
+	m1.Results = make([]*ParamField, len(m.Results))
+	m1.TypeParams = make([]*TypeParam, len(m.TypeParams))
+	for i, param := range m.Params {
+		m1.Params[i] = param.Clone()
+	}
+	for i, param := range m.Results {
+		m1.Results[i] = param.Clone()
+	}
+	//copy(m1.Params, m.Params)
+	//copy(m1.Results, m.Results)
+	copy(m1.TypeParams, m.TypeParams)
+	return m1
+}
 func (m *Method) SetActualType(name string, as *Struct) {
 	if m.IsGeneric && len(m.TypeParams) > 0 {
 		for _, param := range m.TypeParams {

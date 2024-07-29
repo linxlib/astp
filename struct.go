@@ -11,6 +11,7 @@ type Struct struct {
 	KeyHash     string         //所在文件hash值, 重复解析时直接获取
 	Fields      []*StructField //结构体字段
 	Methods     []*Method      //结构体方法
+	HasParent   bool           //是否有继承结构
 	IsInterface bool
 	Inter       *Interface
 	Docs        []string //文档
@@ -41,16 +42,26 @@ func (s *Struct) Clone() *Struct {
 	if s == nil {
 		return nil
 	}
-	return &Struct{
+	n := &Struct{
 		Name:        s.Name,
 		PackagePath: s.PackagePath,
 		KeyHash:     s.KeyHash,
-		//Fields:      s.Fields,
-		//Methods:     s.Methods,
+		IsGeneric:   s.IsGeneric,
+		HasParent:   s.HasParent,
 		IsInterface: s.IsInterface,
 		Docs:        s.Docs,
 		Comment:     s.Comment,
 	}
+	n.Fields = make([]*StructField, len(s.Fields))
+	n.Methods = make([]*Method, len(s.Methods))
+	n.TypeParams = make([]*TypeParam, len(s.TypeParams))
+	copy(n.Fields, s.Fields)
+	for i, method := range s.Methods {
+		n.Methods[i] = method.Clone()
+	}
+	//copy(n.Methods, s.Methods)
+	copy(n.TypeParams, s.TypeParams)
+	return n
 }
 func (s *Struct) GetType() *Struct {
 	return s
@@ -106,7 +117,19 @@ func (s *Struct) GetAllFieldsByTag(tag string) []*StructField {
 	return rtn
 }
 
-func (s *Struct) SetThisPackageTypeParams2(files map[string]*File) {
+func (s *Struct) HandleCurrentPackageRefs(files map[string]*File) {
+	s.handleCurPkgTypeParam(files)
+	s.handleCurPkgFields(files)
+	s.handleCurPkgMethodParams(files)
+}
+
+func (s *Struct) HandleCurrentPackageRef(file *File) {
+	s.handleCurFileTypeParams(file)
+	s.handleCurFileFields(file)
+	s.handleCurFileMethodParams(file)
+}
+
+func (s *Struct) handleCurPkgTypeParam(files map[string]*File) {
 	for _, param := range s.TypeParams {
 		if param.PackagePath == "this" {
 			for _, file := range files {
@@ -123,7 +146,23 @@ func (s *Struct) SetThisPackageTypeParams2(files map[string]*File) {
 	}
 }
 
-func (s *Struct) SetThisPackageTypeParams(file *File) {
+// TODO:
+
+/**
+type StructList []*Struct
+
+func (l StructList) FindByName(name string) *Struct {
+	for _, s := range l {
+		if s.Name == name {
+			return s
+		}
+	}
+	return nil
+}
+
+*/
+
+func (s *Struct) handleCurFileTypeParams(file *File) {
 	for _, param := range s.TypeParams {
 		if param.PackagePath == "this" {
 			for _, s2 := range file.Structs {
@@ -135,7 +174,7 @@ func (s *Struct) SetThisPackageTypeParams(file *File) {
 		}
 	}
 }
-func (s *Struct) SetThisPackageFields2(files map[string]*File) {
+func (s *Struct) handleCurPkgFields(files map[string]*File) {
 	for _, field := range s.Fields {
 		if field.PackagePath == "this" {
 			if s.IsGeneric {
@@ -174,8 +213,7 @@ func (s *Struct) SetThisPackageFields2(files map[string]*File) {
 	}
 }
 
-// TODO: 这里不仅仅是当前文件，还有可能是当前目录下的其他文件
-func (s *Struct) SetThisPackageFields(file *File) {
+func (s *Struct) handleCurFileFields(file *File) {
 	for _, field := range s.Fields {
 		if field.PackagePath == "this" {
 			if s.IsGeneric {
@@ -208,7 +246,7 @@ func (s *Struct) SetThisPackageFields(file *File) {
 		}
 	}
 }
-func (s *Struct) SetThisPackageMethodParams2(files map[string]*File) {
+func (s *Struct) handleCurPkgMethodParams(files map[string]*File) {
 	for _, method := range s.Methods {
 		for _, param := range method.Params {
 			if param.PackagePath == "this" {
@@ -257,7 +295,7 @@ func (s *Struct) SetThisPackageMethodParams2(files map[string]*File) {
 	}
 }
 
-func (s *Struct) SetThisPackageMethodParams(file *File) {
+func (s *Struct) handleCurFileMethodParams(file *File) {
 	for _, method := range s.Methods {
 		for _, param := range method.Params {
 			if param.PackagePath == "this" {
