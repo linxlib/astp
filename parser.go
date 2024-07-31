@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"github.com/linxlib/astp/internal"
 	"github.com/linxlib/astp/internal/json"
+	"github.com/linxlib/astp/internal/yaml"
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"log"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -16,9 +18,9 @@ import (
 	"sync"
 )
 
-type ISetTypeNamer interface {
+type setter interface {
 	GetName() string
-	SetType(namer *Struct)
+	SetType(s *Struct)
 	SetInnerType(b bool)
 	SetIsStruct(b bool)
 	SetTypeString(s string)
@@ -28,34 +30,16 @@ type ISetTypeNamer interface {
 	SetPackagePath(s string)
 	GetType() *Struct
 }
-type PPackage string
-type PFileKey string
-
-// TODO
-
-// AstFile
-// 把整体结构根据包归集，方便在包下查找
-type AstFile map[PPackage]map[PFileKey]*File
-
-// 这里解析完之后的输出内容，可以为生成一个go文件，这个文件里包含了为当前这个对象赋值的语句
-// 这样可以防止 如果生成文件，别人没拷贝文件 就尴尬了
 
 type Parser struct {
-	lock sync.RWMutex
-	//所有相关文件 key为文件路径/包 的哈希
-	// 如果是包则为 包路径+文件名 -> hash
-	Files map[string]*File
-
+	lock   sync.RWMutex
+	Files  map[string]*File
 	modDir string //mod目录
 	modPkg string //mod
 
 	//TODO
-
 	sdkPath string //go sdk的源码根目录 eg. C:\Users\<UserName>\sdk\go1.21.0\src\builtin
 	modPath string //本地mod的目录  eg. C:\Users\<UserName>\go\pkg\mod
-
-	//pkgWhiteList map[string]bool //包白名单，会在sdkPath或者modPath中找文件并解析
-
 }
 
 func NewParser() (p *Parser) {
@@ -87,8 +71,14 @@ func (p *Parser) Load(f string) {
 		data := internal.ReadFile(f)
 
 		var buf = bytes.NewBuffer(data)
-		dec := json.NewDecoder(buf)
-		_ = dec.Decode(&p.Files)
+		if filepath.Ext(f) == ".yaml" {
+			yamlDec := yaml.NewDecoder(buf)
+			_ = yamlDec.Decode(&p.Files)
+		} else {
+			dec := json.NewDecoder(buf)
+			_ = dec.Decode(&p.Files)
+		}
+
 	}
 }
 
@@ -97,17 +87,29 @@ func (p *Parser) WriteOut(filename string) error {
 	defer p.lock.Unlock()
 
 	var buf bytes.Buffer
-	encoder := json.NewEncoder(&buf)
-	err := encoder.Encode(p.Files)
-	if err != nil {
-		return err
+	if filepath.Ext(filename) == ".yaml" {
+		encoder := yaml.NewEncoder(&buf)
+		err := encoder.Encode(p.Files)
+		if err != nil {
+			return err
+		}
+	} else {
+		encoder := json.NewEncoder(&buf)
+		err := encoder.Encode(p.Files)
+		if err != nil {
+			return err
+		}
 	}
 	internal.WriteFile(filename, buf.Bytes(), true)
 	return nil
 }
 
-func (p *Parser) Parse() {
-	f, key := p.parseFile("./main.go")
+func (p *Parser) Parse(fa ...string) {
+	file := "./main.go"
+	if len(fa) > 0 {
+		file = fa[0]
+	}
+	f, key := p.parseFile(file)
 	p.Files[key] = f
 
 	for _, file := range p.Files {
@@ -116,11 +118,6 @@ func (p *Parser) Parse() {
 		}
 	}
 
-}
-
-// isParsed 判断一个文件是否已经缓存
-func (p *Parser) isParsed(file string) bool {
-	return false
 }
 
 // getPackageDir 根据包路径获得实际的目录路径
@@ -143,6 +140,9 @@ func (p *Parser) getPackage(file string) string {
 	f = f[:n]
 	return p.modPkg + f[len(f1):]
 }
+func (p *Parser) isGoFile(f string) bool {
+	return filepath.Ext(f) == ".go"
+}
 
 // parseDir 解析一个目录
 // 对于引用一个包的时候，直接解析其目录下的所有文件（不包含子目录）
@@ -151,18 +151,17 @@ func (p *Parser) parseDir(dir string) map[string]*File {
 
 	fs, _ := os.ReadDir(dir)
 	for _, f := range fs {
-		if !f.IsDir() && filepath.Ext(f.Name()) == ".go" {
+		if !f.IsDir() && p.isGoFile(f.Name()) {
 			f, key := p.parseFile(filepath.Join(dir, f.Name()))
 			files[key] = f
 		}
-
 	}
-
 	return files
 }
 
 // parseFile 解析一个go文件
 func (p *Parser) parseFile(file string) (*File, string) {
+	log.Println("parse:" + file)
 	name := filepath.Base(file)
 	node, err := parser.ParseFile(token.NewFileSet(), file, nil, parser.ParseComments)
 	if err != nil {
@@ -176,16 +175,16 @@ func (p *Parser) parseFile(file string) (*File, string) {
 	p.parsePackages(f, node)
 	p.parseImports(f, node)
 	p.parseVars(f, node)
-	p.parseConsts(f, node)
+	p.parseConst(f, node)
 	p.parseStructs(f, node)
-
-	p.parseFunction(f, node)
+	p.parseFunctions(f, node)
 
 	return f, internal.GetKey(f.PackagePath, filepath.Base(f.FilePath))
 }
 
 // parsePackages 解析包
 func (p *Parser) parsePackages(file *File, af *ast.File) {
+	log.Printf("parse file package: %s\n", file.PackagePath)
 	file.PackageName = af.Name.Name
 	file.Docs = internal.GetDocs(af.Doc)
 
@@ -198,8 +197,8 @@ func (p *Parser) parsePackages(file *File, af *ast.File) {
 
 // parseImports 解析导入区
 func (p *Parser) parseImports(file *File, af *ast.File) {
-	file.Imports = make([]*Import, 0)
-	for _, spec := range af.Imports {
+	file.Imports = make([]*Import, len(af.Imports))
+	for idx, spec := range af.Imports {
 		i := new(Import)
 		if spec.Name != nil {
 			i.Alias = spec.Name.Name
@@ -215,13 +214,15 @@ func (p *Parser) parseImports(file *File, af *ast.File) {
 			i.Name = v
 		}
 		i.ImportPath = v
-		file.Imports = append(file.Imports, i)
+		file.Imports[idx] = i
 	}
+	log.Printf("parse file imports: count: %d", len(af.Imports))
 
 }
 
-// parseConsts 解析常量区
-func (p *Parser) parseConsts(file *File, af *ast.File) {
+// parseConst 解析常量区
+func (p *Parser) parseConst(file *File, af *ast.File) {
+	log.Printf("parse file const:%s\n", file.PackagePath)
 	for _, decl := range af.Decls {
 		switch decl := decl.(type) {
 		case *ast.GenDecl:
@@ -261,42 +262,41 @@ func (p *Parser) parseConsts(file *File, af *ast.File) {
 		}
 	}
 }
+func (p *Parser) findInFile(f *File, name string) setter {
+	for _, s := range f.Structs {
+		if s.Name == name {
+			return s
+		}
+	}
+	for _, s := range f.Methods {
+		if s.Name == name {
+			return s
+		}
+	}
+	for _, s := range f.Funcs {
+		if s.Name == name {
+			return s
+		}
+	}
+	for _, s := range f.Vars {
+		if s.Name == name {
+			return s
+		}
+	}
+	for _, s := range f.Consts {
+		if s.Name == name {
+			return s
+		}
+	}
+	return nil
+}
 
 // findFileByPackageAndType 根据引用类型查找并解析对应的代码文件
 //
 // @param pkg 包名
+//
 // @param name 类型名（可以是struct func var const）
-func (p *Parser) findFileByPackageAndType(pkg string, name string) ISetTypeNamer {
-	var findInFile = func(f *File) ISetTypeNamer {
-		for _, s := range f.Structs {
-			if s.Name == name {
-				return s
-			}
-		}
-		for _, s := range f.Methods {
-			if s.Name == name {
-				return s
-			}
-		}
-		for _, s := range f.Funcs {
-			if s.Name == name {
-				return s
-			}
-		}
-		for _, s := range f.Vars {
-			if s.Name == name {
-				return s
-			}
-		}
-		for _, s := range f.Consts {
-			if s.Name == name {
-				return s
-			}
-		}
-		return nil
-	}
-
-	//http.Header{}
+func (p *Parser) findFileByPackageAndType(pkg string, name string) setter {
 	//TODO: net/http 等包需要加入支持
 	dir := p.getPackageDir(pkg)
 	if dir == "" {
@@ -309,7 +309,7 @@ func (p *Parser) findFileByPackageAndType(pkg string, name string) ISetTypeNamer
 		key := internal.GetKey(pkg, b)
 
 		if v, ok := p.Files[key]; ok { //根据文件key，找到了对应的文件（已在其他地方解析过）
-			if s := findInFile(v); s != nil {
+			if s := p.findInFile(v, name); s != nil {
 				return s
 			}
 		}
@@ -318,7 +318,7 @@ func (p *Parser) findFileByPackageAndType(pkg string, name string) ISetTypeNamer
 	filesa := p.parseDir(dir)
 	p.merge(filesa)
 	for _, v := range filesa {
-		if s := findInFile(v); s != nil {
+		if s := p.findInFile(v, name); s != nil {
 			return s
 		}
 	}
@@ -335,6 +335,7 @@ func (p *Parser) merge(files map[string]*File) {
 
 // parseVars 解析变量
 func (p *Parser) parseVars(file *File, af *ast.File) {
+	log.Printf("parse file vars:%s\n", file.PackagePath)
 	file.Vars = make([]*Var, 0)
 	for _, decl := range af.Decls {
 		switch decl := decl.(type) {
@@ -346,16 +347,10 @@ func (p *Parser) parseVars(file *File, af *ast.File) {
 					case *ast.ValueSpec:
 						for i, v := range spec.Names {
 							vv := &Var{
-								Name:       v.Name,
-								TypeString: "",
-								Type:       nil,
-								Value:      nil,
-								Docs:       []string{},
-								Comments:   "",
+								Name: v.Name,
+								Docs: []string{},
 							}
-
 							p.parseOther(spec.Type, v.Name, file.Imports, vv)
-
 							//TODO: 解析变量的值
 							if len(spec.Values) == len(spec.Names) {
 								if a, ok := spec.Values[i].(*ast.BasicLit); ok {
@@ -378,6 +373,7 @@ func (p *Parser) parseVars(file *File, af *ast.File) {
 
 // parseStructs 解析结构体
 func (p *Parser) parseStructs(file *File, af *ast.File) {
+	log.Printf("parse file structs:%s\n", file.PackagePath)
 	for _, decl := range af.Decls {
 		switch decl := decl.(type) {
 		case *ast.GenDecl:
@@ -385,6 +381,7 @@ func (p *Parser) parseStructs(file *File, af *ast.File) {
 				for _, spec := range decl.Specs {
 					switch spec := spec.(type) {
 					case *ast.TypeSpec:
+
 						a := &Struct{
 							Name:        spec.Name.Name,
 							PackagePath: file.PackagePath,
@@ -393,16 +390,16 @@ func (p *Parser) parseStructs(file *File, af *ast.File) {
 							a.Docs = internal.GetDocs(decl.Doc)
 						} else {
 							a.Docs = internal.GetDocs(spec.Doc)
-
 						}
 						a.Comment = internal.GetComment(spec.Comment)
 						if spec.TypeParams != nil {
 							a.IsGeneric = true
-							a.TypeParams = p.parseTypeParams(file, spec.TypeParams)
+							a.TypeParams = p.parseTypeParams(spec.TypeParams)
 						}
 						switch spec1 := spec.Type.(type) {
 						case *ast.StructType:
 							{
+								log.Printf("parse struct:%s\n", a.Name)
 								a.Fields = p.parseFields(file, spec1.Fields.List)
 
 								methods := p.parseMethods(a, af, file)
@@ -427,14 +424,10 @@ func (p *Parser) parseStructs(file *File, af *ast.File) {
 							}
 
 						case *ast.InterfaceType:
+							log.Printf("parse interface:%s\n", a.Name)
 							a.IsInterface = true
-
-							interfaceStruct := p.parseInterfaces(a, spec1.Methods.List, file)
+							interfaceStruct := p.parseInterfaces(spec1.Methods.List, file)
 							a.Inter = interfaceStruct
-							//if file.Methods == nil {
-							//	file.Methods = make([]*Method, 0)
-							//}
-							//file.Methods = append(file.Methods, interfaceStruct.Methods...)
 						}
 						file.Structs = append(file.Structs, a)
 
@@ -450,14 +443,14 @@ func (p *Parser) parseStructs(file *File, af *ast.File) {
 
 }
 
-// 解析结构体的方法
+// parseMethods 解析结构体的方法
 func (p *Parser) parseMethods(s *Struct, af *ast.File, file *File) []*Method {
+	log.Printf("parse methods: %s \n", s.Name)
 	methods := make([]*Method, 0)
 	for idx, decl := range af.Decls {
 		switch decl := decl.(type) {
 		case *ast.FuncDecl:
 			if decl.Recv != nil {
-
 				recv := new(Receiver)
 				switch decl1 := decl.Recv.List[0].Type.(type) {
 				case *ast.StarExpr:
@@ -475,7 +468,14 @@ func (p *Parser) parseMethods(s *Struct, af *ast.File, file *File) []*Method {
 							recv.Name = decl.Recv.List[0].Names[0].Name
 							recv.Type = s.Clone()
 							recv.Pointer = true
-							recv.TypeString = decl1.X.(*ast.IndexExpr).X.(*ast.Ident).Name
+							recv.TypeString = spec.X.(*ast.Ident).Name
+						}
+					case *ast.IndexListExpr:
+						if spec.X.(*ast.Ident).Name == s.Name {
+							recv.Name = decl.Recv.List[0].Names[0].Name
+							recv.Type = s.Clone()
+							recv.Pointer = true
+							recv.TypeString = spec.X.(*ast.Ident).Name
 						}
 					}
 
@@ -495,16 +495,12 @@ func (p *Parser) parseMethods(s *Struct, af *ast.File, file *File) []*Method {
 						PackagePath: file.PackagePath,
 						Name:        decl.Name.Name,
 						Private:     internal.IsPrivate(decl.Name.Name),
-						Signature:   "",
 						Docs:        internal.GetDocs(decl.Doc),
-						Params:      nil,
-						Results:     nil,
 					}
 					// 解析参数
 					method.Params = p.parseParams(file, decl.Type.Params)
 					// 解析返回
 					method.Results = p.parseResults(file, decl.Type.Results)
-
 					methods = append(methods, method)
 				}
 
@@ -512,7 +508,6 @@ func (p *Parser) parseMethods(s *Struct, af *ast.File, file *File) []*Method {
 
 		}
 	}
-	//s.Methods = methods
 	return methods
 }
 
@@ -521,6 +516,7 @@ func (p *Parser) parseParams(file *File, params *ast.FieldList) []*ParamField {
 	if params == nil {
 		return nil
 	}
+	log.Printf("parse method params: count: %d \n", len(params.List))
 	pars := make([]*ParamField, 0)
 	var pIndex int
 
@@ -530,23 +526,11 @@ func (p *Parser) parseParams(file *File, params *ast.FieldList) []*ParamField {
 				Index:       pIndex,
 				Name:        name.Name,
 				PackagePath: file.PackagePath,
-				Type:        nil,
-				HasTag:      false,
-				Tag:         "",
-				TypeString:  "",
-				InnerType:   false,
 				Private:     true,
-				Pointer:     false,
-				Slice:       false,
-				IsStruct:    false,
-				Docs:        nil,
-				Comment:     "",
 			}
 			par.Docs = internal.GetDocs(param.Doc)
 			par.Comment = internal.GetComment(param.Comment)
-			//TODO: 要考虑  （a,b string） 这样的参数形式
 			p.parseOther(param.Type, name.Name, file.Imports, par)
-
 			pars = append(pars, par)
 			pIndex++
 		}
@@ -559,6 +543,7 @@ func (p *Parser) parseResults(file *File, params *ast.FieldList) []*ParamField {
 	if params == nil {
 		return nil
 	}
+	log.Printf("parse method params: count: %d \n", len(params.List))
 	pars := make([]*ParamField, 0)
 	var pIndex int
 	for _, param := range params.List {
@@ -568,17 +553,7 @@ func (p *Parser) parseResults(file *File, params *ast.FieldList) []*ParamField {
 					Index:       pIndex,
 					Name:        name.Name,
 					PackagePath: file.PackagePath,
-					Type:        nil,
-					HasTag:      false,
-					Tag:         "",
-					TypeString:  "",
-					InnerType:   false,
 					Private:     true,
-					Pointer:     false,
-					Slice:       false,
-					IsStruct:    false,
-					Docs:        nil,
-					Comment:     "",
 				}
 				par.Docs = internal.GetDocs(param.Doc)
 				par.Comment = internal.GetComment(param.Comment)
@@ -593,18 +568,9 @@ func (p *Parser) parseResults(file *File, params *ast.FieldList) []*ParamField {
 			par := &ParamField{
 				Index:       pIndex,
 				Name:        "",
-				PackagePath: "",
+				PackagePath: file.PackagePath,
 				Type:        nil,
-				HasTag:      false,
-				Tag:         "",
-				TypeString:  "",
-				InnerType:   false,
 				Private:     true,
-				Pointer:     false,
-				Slice:       false,
-				IsStruct:    false,
-				Docs:        nil,
-				Comment:     "",
 			}
 			p.parseOther(param.Type, "", file.Imports, par)
 			pars = append(pars, par)
@@ -615,26 +581,21 @@ func (p *Parser) parseResults(file *File, params *ast.FieldList) []*ParamField {
 	return pars
 }
 
-// parseFunction 解析函数
-func (p *Parser) parseFunction(file *File, af *ast.File) {
+// parseFunctions 解析函数
+func (p *Parser) parseFunctions(file *File, af *ast.File) {
+	log.Printf("parse functions: %s \n", file.PackagePath)
 	methods := make([]*Method, 0)
 	for _, decl := range af.Decls {
 		switch decl := decl.(type) {
 		case *ast.FuncDecl:
 			if decl.Recv == nil {
 				method := &Method{
-					Receiver:    nil,
 					PackagePath: file.PackagePath,
-					Name:        "",
-					Private:     false,
-					Signature:   "",
 					Docs:        internal.GetDocs(decl.Doc),
-					Params:      nil,
-					Results:     nil,
 				}
 				method.Name = decl.Name.Name
 				if decl.Type.TypeParams != nil {
-					method.TypeParams = p.parseTypeParams(file, decl.Type.TypeParams)
+					method.TypeParams = p.parseTypeParams(decl.Type.TypeParams)
 				}
 				method.Private = internal.IsPrivate(method.Name)
 				method.Params = p.parseParams(file, decl.Type.Params)
@@ -649,7 +610,8 @@ func (p *Parser) parseFunction(file *File, af *ast.File) {
 }
 
 // parseInterfaces 解析接口
-func (p *Parser) parseInterfaces(s *Struct, af []*ast.Field, file *File) *Interface {
+func (p *Parser) parseInterfaces(af []*ast.Field, file *File) *Interface {
+	log.Printf("parse interface: method count: %d \n", len(af))
 	result := new(Interface)
 	result.Methods = make([]*Method, 0)
 	result.Constraints = []string{}
@@ -657,11 +619,9 @@ func (p *Parser) parseInterfaces(s *Struct, af []*ast.Field, file *File) *Interf
 		switch spec := field.Type.(type) {
 		case *ast.FuncType:
 			method := &Method{
-				Receiver:    nil,
 				PackagePath: file.PackagePath,
 				Name:        field.Names[0].Name,
 				Private:     internal.IsPrivate(field.Names[0].Name),
-				Signature:   "",
 				Docs:        internal.GetDocs(field.Doc),
 				Comments:    internal.GetComment(field.Comment),
 				Params:      p.parseParams(file, spec.Params),
@@ -670,17 +630,17 @@ func (p *Parser) parseInterfaces(s *Struct, af []*ast.Field, file *File) *Interf
 
 			result.Methods = append(result.Methods, method)
 		default:
-			p.parseInterfaceContraints(field, result)
+			p.parseInterfaceConstraints(field, result)
 		}
 	}
 
 	return result
 }
-func (p *Parser) parseInterfaceContraints(expr *ast.Field, p2 *Interface) {
+func (p *Parser) parseInterfaceConstraints(expr *ast.Field, p2 *Interface) {
 	p2.Constraints = append(p2.Constraints, "fuck!!!! here is type constraints!")
 }
 
-func (p *Parser) parseIdent(spec *ast.Ident, name string, snamer ISetTypeNamer) {
+func (p *Parser) parseIdent(spec *ast.Ident, name string, snamer setter) {
 	if internal.IsInternalType(spec.Name) {
 		snamer.SetIsStruct(false)
 		snamer.SetInnerType(true)
@@ -693,13 +653,13 @@ func (p *Parser) parseIdent(spec *ast.Ident, name string, snamer ISetTypeNamer) 
 		snamer.SetInnerType(false)
 		snamer.SetTypeString(spec.Name)
 		snamer.SetPrivate(internal.IsPrivate(name))
-		snamer.SetPackagePath("this") //标记为this 在整个文件都解析完的情况下再去处理
+		snamer.SetPackagePath("this") //handled later
 		snamer.SetType(nil)
 		snamer.SetSlice(false)
 	}
 
 }
-func (p *Parser) parseSelector(spec *ast.SelectorExpr, name string, imports []*Import, snamer ISetTypeNamer) {
+func (p *Parser) parseSelector(spec *ast.SelectorExpr, name string, imports []*Import, snamer setter) {
 	snamer.SetIsStruct(true)
 	snamer.SetInnerType(false)
 	pkgName := spec.X.(*ast.Ident).Name
@@ -721,12 +681,12 @@ func (p *Parser) parseSelector(spec *ast.SelectorExpr, name string, imports []*I
 	snamer.SetPointer(false)
 	snamer.SetSlice(false)
 }
-func (p *Parser) parseStar(spec *ast.StarExpr, name string, imports []*Import, snamer ISetTypeNamer) {
+
+func (p *Parser) parseStar(spec *ast.StarExpr, name string, imports []*Import, snamer setter) {
 	switch spec := spec.X.(type) {
 	case *ast.IndexExpr:
 		switch spec1 := spec.X.(type) {
 		case *ast.Ident:
-			//fmt.Println(spec1.Name)
 			snamer.SetTypeString(spec1.Name + "[" + spec.Index.(*ast.Ident).Name + "]")
 			snamer.SetSlice(false)
 			snamer.SetPackagePath("this")
@@ -756,12 +716,59 @@ func (p *Parser) parseStar(spec *ast.StarExpr, name string, imports []*Import, s
 					} else {
 						snamer.SetInnerType(true)
 					}
-
-					//snamer.SetTypeString("*" + pkgName + "." + typeName)
 				}
 			}
 		case *ast.StarExpr:
 		}
+	case *ast.IndexListExpr:
+		switch spec1 := spec.X.(type) {
+		case *ast.Ident:
+			var ts []string
+			for _, indic := range spec.Indices {
+				ts = append(ts, indic.(*ast.Ident).Name)
+			}
+			snamer.SetTypeString(spec1.Name + "[" + strings.Join(ts, ",") + "]")
+			snamer.SetSlice(false)
+			snamer.SetPackagePath("this")
+			snamer.SetType(nil)
+			snamer.SetPrivate(internal.IsPrivate(name))
+			snamer.SetPointer(true)
+		case *ast.SelectorExpr:
+			switch spec.X.(type) {
+			case *ast.Ident:
+				var ts []string
+				for _, indic := range spec.Indices {
+					ts = append(ts, indic.(*ast.Ident).Name)
+				}
+				snamer.SetTypeString(spec1.Sel.Name + "[" + strings.Join(ts, ",") + "]")
+			case *ast.SelectorExpr:
+				var ts []string
+				for _, indic := range spec.Indices {
+					ts = append(ts, indic.(*ast.Ident).Name)
+				}
+				snamer.SetTypeString(spec1.Sel.Name + "[" + strings.Join(ts, ",") + "]")
+
+			}
+			snamer.SetSlice(false)
+			snamer.SetPackagePath("")
+			snamer.SetPrivate(true)
+			snamer.SetPointer(internal.IsPrivate(name))
+			pkgName := spec1.X.(*ast.Ident).Name
+			typeName := spec1.Sel.Name
+			for _, i3 := range imports {
+				if i3.Name == pkgName {
+					snamer.SetPackagePath(i3.ImportPath)
+					namer := p.findFileByPackageAndType(i3.ImportPath, typeName)
+					if namer != nil {
+						snamer.SetType(namer.GetType())
+					} else {
+						snamer.SetInnerType(true)
+					}
+				}
+			}
+		case *ast.StarExpr:
+		}
+
 	case *ast.Ident: //指针的内置类型
 		if internal.IsInternalType(spec.Name) {
 			snamer.SetIsStruct(false)
@@ -872,7 +879,7 @@ func (p *Parser) parseStar(spec *ast.StarExpr, name string, imports []*Import, s
 
 	}
 }
-func (p *Parser) parseArrOrEll(spec any, name string, imports []*Import, snamer ISetTypeNamer) {
+func (p *Parser) parseArrOrEll(spec any, name string, imports []*Import, snamer setter) {
 	switch spec := spec.(type) {
 	case *ast.ArrayType:
 		switch spec := spec.Elt.(type) {
@@ -1007,7 +1014,7 @@ func (p *Parser) parseArrOrEll(spec any, name string, imports []*Import, snamer 
 	}
 
 }
-func (p *Parser) parseMap(spec *ast.MapType, name string, imports []*Import, snamer ISetTypeNamer) {
+func (p *Parser) parseMap(spec *ast.MapType, name string, imports []*Import, snamer setter) {
 	snamer.SetPrivate(internal.IsPrivate(name))
 	snamer.SetIsStruct(false)
 	snamer.SetInnerType(true)
@@ -1070,7 +1077,7 @@ func (p *Parser) parseMap(spec *ast.MapType, name string, imports []*Import, sna
 }
 
 // parseOther 解析引入的类型
-func (p *Parser) parseOther(t ast.Expr, name string, imports []*Import, snamer ISetTypeNamer) {
+func (p *Parser) parseOther(t ast.Expr, name string, imports []*Import, snamer setter) {
 
 	snamer.SetPrivate(internal.IsPrivate(name))
 	snamer.SetPackagePath("builtin")
@@ -1094,7 +1101,8 @@ func (p *Parser) parseOther(t ast.Expr, name string, imports []*Import, snamer I
 	}
 
 }
-func (p *Parser) parseTypeParams(file *File, list *ast.FieldList) []*TypeParam {
+func (p *Parser) parseTypeParams(list *ast.FieldList) []*TypeParam {
+	log.Printf("parse type param: count: %d", len(list.List))
 	result := make([]*TypeParam, 0)
 
 	for _, field := range list.List {
@@ -1128,6 +1136,7 @@ func (p *Parser) parseTypeParams(file *File, list *ast.FieldList) []*TypeParam {
 
 // parseFields 解析字段
 func (p *Parser) parseFields(file *File, fields []*ast.Field) []*StructField {
+	log.Printf("parse fields: count: %d\n", len(fields))
 	var sf = make([]*StructField, 0)
 	for idx, field := range fields {
 		a := new(StructField)
@@ -1137,7 +1146,7 @@ func (p *Parser) parseFields(file *File, fields []*ast.Field) []*StructField {
 		}
 
 		p.parseOther(field.Type, a.Name, file.Imports, a)
-		if a.Name == "" {
+		if a.Name == "" || a.Name == "_" {
 			a.IsParent = true
 			// 将继承的字段合并到当前结构
 			if f := a.GetType(); f != nil {
@@ -1149,12 +1158,8 @@ func (p *Parser) parseFields(file *File, fields []*ast.Field) []*StructField {
 			a.Tag = reflect.StructTag(field.Tag.Value)
 			a.HasTag = true
 		}
-		if field.Comment != nil {
-			a.Comment = internal.GetComment(field.Comment)
-		}
-		if field.Doc != nil {
-			a.Docs = internal.GetDocs(field.Doc)
-		}
+		a.Comment = internal.GetComment(field.Comment)
+		a.Docs = internal.GetDocs(field.Doc)
 
 		sf = append(sf, a)
 	}
@@ -1170,11 +1175,10 @@ func (p *Parser) VisitAllStructs(name string, f func(s *Struct) bool) {
 				}
 			}
 		}
-
 	}
 }
 
-func (p *Parser) parseIndex(spec *ast.IndexExpr, name string, imports []*Import, snamer ISetTypeNamer) {
+func (p *Parser) parseIndex(spec *ast.IndexExpr, name string, imports []*Import, snamer setter) {
 	switch spec := spec.X.(type) {
 	case *ast.Ident:
 		p.parseIdent(spec, name, snamer)

@@ -1,18 +1,18 @@
-package json
+package yaml
 
 import (
-	json "github.com/json-iterator/go"
+	"gopkg.in/yaml.v3"
 )
 
 var (
 	// Marshal is exported by gin/json package.
-	Marshal = json.Marshal
+	Marshal = yaml.Marshal
 	// Unmarshal is exported by gin/json package.
-	Unmarshal = json.Unmarshal
+	Unmarshal = yaml.Unmarshal
 	// MarshalIndent is exported by gin/json package.
-	MarshalIndent = json.MarshalIndent
+	MarshalIndent = yaml.Marshal
 	// NewDecoder is exported by gin/json package.
-	NewDecoder = json.NewDecoder
+	NewDecoder = yaml.NewDecoder
 	// NewEncoder is exported by gin/json package.
-	NewEncoder = json.NewEncoder
+	NewEncoder = yaml.NewEncoder
 )

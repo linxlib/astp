@@ -22,24 +22,6 @@ type ParamField struct {
 	IsGeneric   bool
 }
 
-func CopyFromStructField(sf *StructField) *ParamField {
-	p := &ParamField{}
-	p.Name = sf.Name
-	p.Type = sf.Type.Clone()
-	p.InnerType = sf.InnerType
-	p.Tag = sf.Tag
-	p.TypeString = sf.TypeString
-	p.Docs = sf.Docs
-	p.Comment = sf.Comment
-	p.HasTag = sf.HasTag
-	p.Private = sf.Private
-	p.Slice = sf.Slice
-	p.IsStruct = sf.IsStruct
-	p.Pointer = sf.Pointer
-	p.Index = sf.Index
-	p.PackagePath = sf.PackagePath
-	return p
-}
 func (p *ParamField) Clone() *ParamField {
 	return &ParamField{
 		Index:       p.Index,

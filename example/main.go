@@ -12,7 +12,4 @@ func main() {
 	if err != nil {
 		fmt.Println(err)
 	}
-	//p1 := astp.NewParser()
-	//p1.Load()
-	//fmt.Println()
 }
