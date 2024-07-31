@@ -744,7 +744,12 @@ func (p *Parser) parseStar(spec *ast.StarExpr, name string, imports []*Import, s
 			case *ast.SelectorExpr:
 				var ts []string
 				for _, indic := range spec.Indices {
-					ts = append(ts, indic.(*ast.Ident).Name)
+					switch indic.(type) {
+					case *ast.Ident:
+						ts = append(ts, indic.(*ast.Ident).Name)
+					case *ast.SelectorExpr:
+						ts = append(ts, indic.(*ast.SelectorExpr).Sel.Name)
+					}
 				}
 				snamer.SetTypeString(spec1.Sel.Name + "[" + strings.Join(ts, ",") + "]")
 
