@@ -112,6 +112,17 @@ func (p *Parser) Parse(fa ...string) {
 	f, key := p.parseFile(file)
 	p.Files[key] = f
 
+	if f.PackageName == "main" {
+		for _, i := range f.Imports {
+			if strings.HasPrefix(i.ImportPath, f.PackagePath) {
+				dir := p.getPackageDir(i.ImportPath)
+				files := p.parseDir(dir)
+				p.merge(files)
+			}
+		}
+
+	}
+
 	for _, file := range p.Files {
 		for _, s := range file.Structs {
 			s.HandleCurrentPackageRefs(p.Files)
