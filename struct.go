@@ -4,6 +4,13 @@ import (
 	"strings"
 )
 
+type EnumItem struct {
+	Name    string
+	Value   any
+	Docs    []string
+	Comment string
+}
+
 // Struct 结构体
 type Struct struct {
 	Name        string         //结构体名
@@ -18,6 +25,7 @@ type Struct struct {
 	Comment     string   //注释
 	IsGeneric   bool
 	TypeParams  []*TypeParam
+	Enums       []*EnumItem
 }
 
 func (s *Struct) SetActualType(name string, as *Struct) {

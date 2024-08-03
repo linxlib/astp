@@ -53,3 +53,17 @@ func (c *Const) GetName() string {
 }
 
 type ConstSection = []*Const
+
+func (c *Const) HandleEnums(structs []*Struct) {
+	for _, s := range structs {
+		if c.IsIota && c.TypeString == s.Name {
+			c.Type = s.Clone()
+			s.Enums = append(s.Enums, &EnumItem{
+				Name:    c.Name,
+				Value:   c.Value,
+				Docs:    c.Docs,
+				Comment: c.Comments,
+			})
+		}
+	}
+}

@@ -14,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"strings"
 	"sync"
 )
@@ -124,6 +125,9 @@ func (p *Parser) Parse(fa ...string) {
 	}
 
 	for _, file := range p.Files {
+		for _, c := range file.Consts {
+			c.HandleEnums(file.Structs)
+		}
 		for _, s := range file.Structs {
 			s.HandleCurrentPackageRefs(p.Files)
 		}
@@ -238,28 +242,66 @@ func (p *Parser) parseConst(file *File, af *ast.File) {
 		switch decl := decl.(type) {
 		case *ast.GenDecl:
 			if decl.Tok == token.CONST {
+				// 当前const区域所属的类型
+				var constAreaType string
+				var curValue int
+
 				for _, spec := range decl.Specs {
 					switch spec := spec.(type) {
 					case *ast.ValueSpec:
 						for i, v := range spec.Names {
 							vv := &Const{
-								Name:       v.Name,
-								TypeString: "",
-								Type:       nil,
-								Value:      nil,
-								Docs:       []string{},
-								Comments:   "",
+								Name:        v.Name,
+								PackagePath: file.PackagePath,
+								TypeString:  "",
+								Private:     internal.IsPrivate(v.Name),
+								Type:        nil,
+								Value:       nil,
+								Docs:        []string{},
+								Comments:    "",
+							}
+							// 如果一个常量没有声明类型 则表示使用了iota的写法
+							if spec.Type == nil && v.Obj.Data != nil {
+								vv.TypeString = ""
+								if constAreaType != "" {
+									vv.TypeString = constAreaType
+								}
+								vv.IsIota = true
+								curValue++
+								vv.Value = curValue
 							}
 							if a, ok := spec.Type.(*ast.Ident); ok {
 								vv.TypeString = a.Name
+								constAreaType = a.Name
 							}
 							if len(spec.Values) == len(spec.Names) {
-								if a, ok := spec.Values[i].(*ast.Ident); ok {
-									//todo: 对于const枚举需要分区处理
-									if strings.Contains(a.Name, "iota") {
+								switch vvv := spec.Values[i].(type) {
+								case *ast.Ident:
+									if vvv.Name == "iota" {
 										vv.IsIota = true
+										vv.Value = 0
+										curValue = 0
+									}
+								case *ast.BinaryExpr:
+									if vvv.X.(*ast.Ident).Name == "iota" {
+										vv.IsIota = true
+										curValue = 0
+										switch vvv.Y.(*ast.BasicLit).Kind {
+										case token.INT:
+											temp, _ := strconv.Atoi(vvv.Y.(*ast.BasicLit).Value)
+											if vvv.Op == token.ADD {
+
+												curValue += temp
+											} else if vvv.Op == token.SUB {
+												curValue -= temp
+											}
+
+										}
+										vv.Value = curValue
+
 									}
 								}
+
 							}
 
 							vv.Docs = internal.GetDocs(spec.Doc)
