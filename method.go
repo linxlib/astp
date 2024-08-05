@@ -17,6 +17,18 @@ type Method struct {
 	method      any
 }
 
+func (m *Method) GetTypeString() string {
+	return m.Name
+}
+
+func (m *Method) GetTypeParams() []*TypeParam {
+	return m.TypeParams
+}
+
+func (m *Method) SetTypeParams(tps []*TypeParam) {
+	copy(m.TypeParams, tps)
+}
+
 func (m *Method) Clone() *Method {
 	m1 := &Method{
 		Receiver:    m.Receiver.Clone(),

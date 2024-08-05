@@ -23,6 +23,19 @@ type StructField struct {
 	Docs        []string          //文档
 	Comment     string            //注释
 	IsGeneric   bool
+	TypeParams  []*TypeParam
+}
+
+func (f *StructField) GetTypeString() string {
+	return f.TypeString
+}
+
+func (f *StructField) GetTypeParams() []*TypeParam {
+	return f.TypeParams
+}
+
+func (f *StructField) SetTypeParams(tps []*TypeParam) {
+	copy(f.TypeParams, tps)
 }
 
 func (f *StructField) GetType() *Struct {

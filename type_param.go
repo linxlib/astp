@@ -3,6 +3,7 @@ package astp
 type TypeParam struct {
 	Name        string //泛型名
 	PackagePath string
+	PackageName string
 	TypeName    string  //泛型约束名
 	Type        *Struct //泛型约束
 	ActualType  *Struct //实际类型
@@ -12,6 +13,7 @@ func (t *TypeParam) Clone() *TypeParam {
 	return &TypeParam{
 		Name:        t.Name,
 		PackagePath: t.PackagePath,
+		PackageName: t.PackageName,
 		TypeName:    t.TypeName,
 		Type:        t.Type.Clone(),
 		ActualType:  t.ActualType.Clone(),

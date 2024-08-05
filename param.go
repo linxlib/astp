@@ -20,6 +20,19 @@ type ParamField struct {
 	Docs        []string          //文档
 	Comment     string            //注释
 	IsGeneric   bool
+	TypeParams  []*TypeParam
+}
+
+func (p *ParamField) GetTypeString() string {
+	return p.TypeString
+}
+
+func (p *ParamField) GetTypeParams() []*TypeParam {
+	return p.TypeParams
+}
+
+func (p *ParamField) SetTypeParams(tps []*TypeParam) {
+	copy(p.TypeParams, tps)
 }
 
 func (p *ParamField) Clone() *ParamField {

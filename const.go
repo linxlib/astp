@@ -14,6 +14,18 @@ type Const struct {
 	IsIota      bool     //iota自动判定值（枚举）
 }
 
+func (c *Const) GetTypeString() string {
+	return c.TypeString
+}
+
+func (c *Const) GetTypeParams() []*TypeParam {
+	return []*TypeParam{}
+}
+
+func (c *Const) SetTypeParams(tps []*TypeParam) {
+
+}
+
 func (c *Const) SetType(namer *Struct) {
 	c.Type = namer.Clone()
 }

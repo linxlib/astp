@@ -16,6 +16,18 @@ type Var struct {
 	Comments    string   //注释
 }
 
+func (v *Var) GetTypeString() string {
+	return v.TypeString
+}
+
+func (v *Var) GetTypeParams() []*TypeParam {
+	return []*TypeParam{}
+}
+
+func (v *Var) SetTypeParams(tps []*TypeParam) {
+
+}
+
 func (v *Var) GetType() *Struct {
 	return v.Type
 }
