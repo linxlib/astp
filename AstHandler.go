@@ -1,7 +1,6 @@
 package astp
 
 import (
-	"fmt"
 	"github.com/linxlib/astp/internal"
 	"github.com/linxlib/astp/types"
 	"go/ast"
@@ -15,10 +14,11 @@ import (
 
 type FindHandler func(pkg string, name string) *types.Element
 
-func NewAstHandler(f *File, astFile *ast.File, findHandler FindHandler) *AstHandler {
+func NewAstHandler(f *File, modPkg string, astFile *ast.File, findHandler FindHandler) *AstHandler {
 	return &AstHandler{
 		file:        f,
 		af:          astFile,
+		modPkg:      modPkg,
 		findHandler: findHandler,
 	}
 }
@@ -27,6 +27,7 @@ type AstHandler struct {
 	file        *File
 	af          *ast.File
 	findHandler FindHandler
+	modPkg      string
 }
 
 func (a *AstHandler) Result() (*File, string) {
@@ -139,6 +140,7 @@ func (a *AstHandler) handleConsts() {
 										isEnum = true
 										vv.TypeString = a.Name
 										vv.ElementString = a.Name
+
 										constAreaType = a.Name
 									} else {
 										isEnum = false
@@ -150,6 +152,7 @@ func (a *AstHandler) handleConsts() {
 							}
 							if isEnum {
 								vv.ElementType = types.ElementEnum
+								vv.TypeString = constAreaType
 							}
 
 							if spec.Values != nil && len(spec.Values) > 0 {
@@ -198,8 +201,9 @@ func (a *AstHandler) handleConsts() {
 }
 
 type PkgType struct {
-	PkgPath  string
-	TypeName string
+	IsGeneric bool
+	PkgPath   string
+	TypeName  string
 }
 
 func (a *AstHandler) findPackage(expr ast.Expr) []*PkgType {
@@ -209,8 +213,9 @@ func (a *AstHandler) findPackage(expr ast.Expr) []*PkgType {
 
 		return []*PkgType{
 			&PkgType{
-				PkgPath:  types.PackagePath("", spec.Name),
-				TypeName: spec.Name,
+				IsGeneric: false,
+				PkgPath:   types.PackagePath("", spec.Name),
+				TypeName:  spec.Name,
 			},
 		}
 	case *ast.SelectorExpr: //带包的类型
@@ -228,8 +233,9 @@ func (a *AstHandler) findPackage(expr ast.Expr) []*PkgType {
 		}
 		return []*PkgType{
 			&PkgType{
-				PkgPath:  pkgPath,
-				TypeName: typeName,
+				IsGeneric: false,
+				PkgPath:   pkgPath,
+				TypeName:  typeName,
 			},
 		}
 	case *ast.StarExpr: //指针
@@ -254,15 +260,23 @@ func (a *AstHandler) findPackage(expr ast.Expr) []*PkgType {
 		bb := a.findPackage(spec.X)
 		result = append(result, bb...)
 		aa := a.findPackage(spec.Index)
+		for _, pkgType := range aa {
+			pkgType.IsGeneric = true
+		}
 		result = append(result, aa...)
+
 		return result
 	case *ast.IndexListExpr:
 		bb := a.findPackage(spec.X)
 		result = append(result, bb...)
 		for _, indic := range spec.Indices {
 			aa := a.findPackage(indic)
+			for _, pkgType := range aa {
+				pkgType.IsGeneric = true
+			}
 			result = append(result, aa...)
 		}
+
 		return result
 	case *ast.BinaryExpr:
 		aa := a.findPackage(spec.X)
@@ -273,8 +287,9 @@ func (a *AstHandler) findPackage(expr ast.Expr) []*PkgType {
 	case *ast.InterfaceType:
 		return []*PkgType{
 			&PkgType{
-				PkgPath:  types.PackageBuiltIn,
-				TypeName: "interface{}",
+				IsGeneric: false,
+				PkgPath:   types.PackageBuiltIn,
+				TypeName:  "interface{}",
 			},
 		}
 	default:
@@ -305,16 +320,22 @@ func (a *AstHandler) parseResults(params *ast.FieldList, tParams []*types.Elemen
 
 				ps := a.findPackage(param.Type)
 				for _, p := range ps {
-					if p.PkgPath != types.PackageThisPackage && p.PkgPath != types.PackageBuiltIn {
+					tmp := types.CheckPackage(a.modPkg, p.PkgPath)
+					if tmp != types.PackageThisPackage && tmp != types.PackageBuiltIn && tmp != types.PackageThird {
 						par.Item = a.findHandler(p.PkgPath, p.TypeName)
 						par.ItemType = par.Item.ItemType
 						par.PackagePath = par.Item.PackagePath
 						par.PackageName = par.Item.PackageName
+						par.TypeString = par.Item.TypeString
 					} else {
+						par.PackagePath = tmp
+						par.TypeString = p.TypeName
 						// tParams
 						for _, tParam := range tParams {
 							if tParam.Name == p.TypeName {
 								par.Item = tParam.Clone()
+								par.TypeString = tParam.TypeString
+								par.PackagePath = tmp
 								par.ItemType = tParam.ElementType
 
 							}
@@ -338,16 +359,21 @@ func (a *AstHandler) parseResults(params *ast.FieldList, tParams []*types.Elemen
 			}
 			ps := a.findPackage(param.Type)
 			for _, p := range ps {
-				if p.PkgPath != types.PackageThisPackage && p.PkgPath != types.PackageBuiltIn {
+				tmp := types.CheckPackage(a.modPkg, p.PkgPath)
+				if tmp != types.PackageThisPackage && tmp != types.PackageBuiltIn && tmp != types.PackageThird {
 					par.Item = a.findHandler(p.PkgPath, p.TypeName)
 					par.ItemType = par.Item.ItemType
 					par.PackagePath = par.Item.PackagePath
 					par.PackageName = par.Item.PackageName
 				} else {
+					par.PackagePath = tmp
+					par.TypeString = p.TypeName
 					// tParams
 					for _, tParam := range tParams {
 						if tParam.Name == p.TypeName {
 							par.Item = tParam.Clone()
+							par.PackagePath = tParam.PackagePath
+							par.TypeString = tParam.TypeString
 							par.ItemType = tParam.ElementType
 						}
 					}
@@ -382,16 +408,21 @@ func (a *AstHandler) parseParams(params *ast.FieldList, tParams []*types.Element
 			}
 			ps := a.findPackage(param.Type)
 			for _, p := range ps {
-				if p.PkgPath != types.PackageThisPackage && p.PkgPath != types.PackageBuiltIn {
+				tmp := types.CheckPackage(a.modPkg, p.PkgPath)
+				if tmp != types.PackageThisPackage && tmp != types.PackageBuiltIn && tmp != types.PackageThird {
 					par.Item = a.findHandler(p.PkgPath, p.TypeName)
 					par.ItemType = par.Item.ItemType
 					par.PackagePath = par.Item.PackagePath
 					par.PackageName = par.Item.PackageName
 				} else {
+					par.PackagePath = tmp
+					par.TypeString = p.TypeName
 					// tParams
 					for _, tParam := range tParams {
 						if tParam.Name == p.TypeName {
 							par.Item = tParam.Clone()
+							par.PackagePath = tParam.PackagePath
+							par.TypeString = tParam.TypeString
 							par.ItemType = tParam.ElementType
 						}
 					}
@@ -418,18 +449,81 @@ func (a *AstHandler) parseFields(fields []*ast.Field, tParams []*types.Element) 
 		if field.Names != nil {
 			af1.Name = field.Names[0].Name
 		}
+
 		ps := a.findPackage(field.Type)
-		for _, p := range ps {
-			if p.PkgPath != types.PackageThisPackage && p.PkgPath != types.PackageBuiltIn {
+		idx1 := 0
+		for idx2, p := range ps {
+			tmp := types.CheckPackage(a.modPkg, p.PkgPath)
+			if tmp != types.PackageThisPackage && tmp != types.PackageBuiltIn && tmp != types.PackageThird && idx2 == 0 {
+
 				af1.Item = a.findHandler(p.PkgPath, p.TypeName)
 				af1.ItemType = af1.Item.ElementType
 				af1.PackagePath = af1.Item.PackagePath
+				af1.TypeString = af1.Item.TypeString
 				af1.PackageName = af1.Item.PackageName
+
+				if p.IsGeneric {
+					//af1.Item.ItemType = types.ElementGeneric
+					if af1.Elements == nil {
+						af1.Elements = make(map[types.ElementType][]*types.Element)
+					}
+					af1.Elements[types.ElementGeneric] = append(af1.Elements[types.ElementGeneric], &types.Element{
+						Name:          p.TypeName,
+						ElementType:   types.ElementGeneric,
+						Index:         idx1,
+						TypeString:    p.TypeName,
+						ElementString: p.TypeName,
+
+						FromParent: true,
+					})
+					idx1++
+				}
+
 			} else {
+				if p.IsGeneric {
+					//af1.Item.ItemType = types.ElementGeneric
+					if af1.Elements == nil {
+						af1.Elements = make(map[types.ElementType][]*types.Element)
+					}
+					//TODO: 泛型中 如果是结构体，则也需要去解析下 将其文档加入到这里
+					tmp2 := types.CheckPackage(a.modPkg, p.PkgPath)
+					if tmp2 == types.PackageOther || tmp2 == types.PackageThird {
+						tmp1 := a.findHandler(p.PkgPath, p.TypeName)
+						af1.Elements[types.ElementGeneric] = append(af1.Elements[types.ElementGeneric], &types.Element{
+							Name:          tmp1.Name,
+							ElementType:   types.ElementGeneric,
+							Index:         idx1,
+							TypeString:    tmp1.TypeString,
+							ElementString: tmp1.ElementString,
+							PackagePath:   p.PkgPath,
+							PackageName:   tmp1.PackageName,
+							Docs:          tmp1.Docs,
+							Comment:       tmp1.Comment,
+							FromParent:    true,
+						})
+					} else {
+						af1.Elements[types.ElementGeneric] = append(af1.Elements[types.ElementGeneric], &types.Element{
+							Name:          p.TypeName,
+							ElementType:   types.ElementGeneric,
+							Index:         idx1,
+							TypeString:    p.TypeName,
+							ElementString: p.TypeName,
+							PackagePath:   p.PkgPath,
+							FromParent:    true,
+						})
+					}
+
+					idx1++
+				}
+				//af1.PackagePath = tmp
+				//af1.TypeString = p.TypeName
 				// tParams
 				for _, tParam := range tParams {
 					if tParam.Name == p.TypeName {
 						af1.Item = tParam.Clone()
+
+						af1.PackagePath = tParam.PackagePath
+						af1.TypeString = tParam.TypeString
 						af1.ItemType = tParam.ElementType
 					}
 				}
@@ -456,13 +550,12 @@ func (a *AstHandler) parseFields(fields []*ast.Field, tParams []*types.Element) 
 
 func (a *AstHandler) parseReceiver(fieldList *ast.FieldList, s *types.Element) *types.Element {
 	result := &types.Element{
-		PackagePath:   a.file.PackagePath,
-		PackageName:   a.file.PackageName,
-		ElementType:   types.ElementReceiver,
-		Index:         0,
-		ElementString: "(c *Controller)",
-		Signature:     "(c *Controller)",
-		Elements:      make(map[types.ElementType][]*types.Element),
+		PackagePath: a.file.PackagePath,
+		PackageName: a.file.PackageName,
+		ElementType: types.ElementReceiver,
+		Index:       0,
+
+		Elements: make(map[types.ElementType][]*types.Element),
 	}
 	receiver := fieldList.List[0]
 	name := fieldList.List[0].Names[0].Name
@@ -472,8 +565,6 @@ func (a *AstHandler) parseReceiver(fieldList *ast.FieldList, s *types.Element) *
 	switch decl := receiver.Type.(type) {
 	case *ast.Ident:
 		if decl.Name == s.Name {
-			result.ElementString = fmt.Sprintf("%s %s", result.Name, result.Item.Name)
-			result.Signature = result.ElementString
 			result.TypeString = result.Item.Name
 		}
 
@@ -481,21 +572,15 @@ func (a *AstHandler) parseReceiver(fieldList *ast.FieldList, s *types.Element) *
 		switch spec := decl.X.(type) {
 		case *ast.Ident:
 			if spec.Name == s.Name {
-				result.ElementString = fmt.Sprintf("%s *%s", result.Name, result.Item.Name)
-				result.Signature = result.ElementString
 				result.TypeString = result.Item.Name
 			}
 			//TODO: 格式化输出泛型的表示形式
 		case *ast.IndexExpr: //[T]
 			if spec.X.(*ast.Ident).Name == s.Name {
-				result.ElementString = fmt.Sprintf("%s *%s[T]", result.Name, result.Item.Name)
-				result.Signature = result.ElementString
 				result.TypeString = result.Item.Name
 			}
 		case *ast.IndexListExpr: //[T,E]
 			if spec.X.(*ast.Ident).Name == s.Name {
-				result.ElementString = fmt.Sprintf("%s *%s[T,E]", result.Name, result.Item.Name)
-				result.Signature = result.ElementString
 				result.TypeString = result.Item.Name
 			}
 		}
@@ -566,9 +651,13 @@ func (a *AstHandler) handleVars() {
 							}
 							ps := a.findPackage(spec.Type)
 							for _, p := range ps {
-								if p.PkgPath != types.PackageThisPackage && p.PkgPath != types.PackageBuiltIn {
+								tmp := types.CheckPackage(a.modPkg, p.PkgPath)
+								if tmp != types.PackageThisPackage && tmp != types.PackageBuiltIn && tmp != types.PackageThird {
 									vv.Item = a.findHandler(p.PkgPath, p.TypeName)
 									vv.ItemType = vv.Item.ItemType
+									vv.TypeString = vv.Item.TypeString
+									vv.PackagePath = vv.Item.PackagePath
+									vv.PackageName = vv.Item.PackageName
 								}
 							}
 							a.file.Vars = append(a.file.Vars, vv)
@@ -608,21 +697,23 @@ func (a *AstHandler) handleTypeParam(expr ast.Expr) string {
 func (a *AstHandler) parseTypeParams(list *ast.FieldList, tParams []*types.Element) []*types.Element {
 	log.Printf("parse type param: count: %d", len(list.List))
 	result := make([]*types.Element, 0)
-
+	tpIndex := 0
 	for _, field := range list.List {
 
 		for _, name := range field.Names {
 			t := new(types.Element)
+			t.Index = tpIndex
+			tpIndex++
 			switch spec := field.Type.(type) {
 			case *ast.BinaryExpr:
 				ss := a.parseBinaryExpr(spec)
-				t.ElementString = strings.Join(ss, "|")
+				t.TypeString = strings.Join(ss, "|")
 				if internal.IsInternalType(ss[0]) {
 					t.PackagePath = types.PackageBuiltIn
 				}
 			case *ast.Ident:
-				t.ElementString = spec.String()
-				if internal.IsInternalType(t.ElementString) {
+				t.TypeString = spec.String()
+				if internal.IsInternalType(t.TypeString) {
 					t.PackagePath = types.PackageBuiltIn
 				}
 			}
@@ -632,7 +723,9 @@ func (a *AstHandler) parseTypeParams(list *ast.FieldList, tParams []*types.Eleme
 			t.ElementType = types.ElementGeneric
 			ps := a.findPackage(field.Type)
 			for _, p := range ps {
-				if p.PkgPath != types.PackageThisPackage && p.PkgPath != types.PackageBuiltIn {
+				tmp := types.CheckPackage(a.modPkg, p.PkgPath)
+				if tmp != types.PackageThisPackage && tmp != types.PackageBuiltIn && tmp != types.PackageThird {
+
 					t.Item = a.findHandler(p.PkgPath, p.TypeName)
 					t.ItemType = t.Item.ItemType
 					t.PackagePath = t.Item.PackagePath
@@ -750,15 +843,14 @@ func (a *AstHandler) handleFunctions() {
 			if decl.Recv == nil {
 
 				method := &types.Element{
-					PackagePath:   a.file.PackagePath,
-					PackageName:   a.file.PackageName,
-					Name:          decl.Name.Name,
-					Index:         funcIndex,
-					Docs:          internal.GetDocs(decl.Doc),
-					ElementType:   types.ElementFunc,
-					ElementString: "func " + decl.Name.Name + "()",
-					Signature:     "func " + decl.Name.Name + "()",
-					Elements:      make(map[types.ElementType][]*types.Element),
+					PackagePath: a.file.PackagePath,
+					PackageName: a.file.PackageName,
+					Name:        decl.Name.Name,
+					Index:       funcIndex,
+					Docs:        internal.GetDocs(decl.Doc),
+					ElementType: types.ElementFunc,
+					TypeString:  decl.Name.Name,
+					Elements:    make(map[types.ElementType][]*types.Element),
 				}
 				funcIndex++
 
@@ -785,33 +877,33 @@ func (a *AstHandler) parseInterfaces(list []*ast.Field, tParams []*types.Element
 			name = field.Names[0].Name
 		}
 		item := &types.Element{
-			Name:          name,
-			PackagePath:   a.file.PackagePath,
-			PackageName:   a.file.PackageName,
-			Index:         i,
-			Tag:           "",
-			ElementString: "",
-			Signature:     "",
-			Docs:          internal.GetDocs(field.Doc),
-			Comment:       internal.GetComment(field.Comment),
-			Elements:      make(map[types.ElementType][]*types.Element),
+			Name:        name,
+			PackagePath: a.file.PackagePath,
+			PackageName: a.file.PackageName,
+			Index:       i,
+			Docs:        internal.GetDocs(field.Doc),
+			Comment:     internal.GetComment(field.Comment),
+			Elements:    make(map[types.ElementType][]*types.Element),
 		}
 		switch spec := field.Type.(type) {
 		case *ast.FuncType:
 			item.ElementType = types.ElementMethod
 			item.Elements[types.ElementParam] = a.parseParams(spec.Params, tParams)
 			item.Elements[types.ElementResult] = a.parseParams(spec.Results, tParams)
-			item.ElementString = "func ()"
+			item.TypeString = name
 		case *ast.BinaryExpr:
 			item.ElementType = types.ElementConstrain
 			vv := a.parseBinaryExpr(spec)
+			item.TypeString = strings.Join(vv, "|")
 			item.ElementString = strings.Join(vv, "|")
 		case *ast.Ident:
 			item.ElementType = types.ElementConstrain
 			item.ElementString = spec.Name
+			item.TypeString = spec.Name
 		default:
 			item.ElementType = types.ElementConstrain
 			item.ElementString = "fuck!!!! here is type constraints!"
+			item.TypeString = ""
 		}
 		interaceFields = append(interaceFields, item)
 	}
@@ -832,6 +924,12 @@ func (a *AstHandler) parseBinaryExpr(expr ast.Expr) (result []string) {
 		}
 	case *ast.Ident:
 		result = append(result, expr.Name)
+		return result
+	case *ast.IndexExpr:
+		xx := a.parseBinaryExpr(expr.X)
+		result = append(result, xx...)
+		idx := a.parseBinaryExpr(expr.Index)
+		result = append(result, idx...)
 		return result
 	default:
 		panic("unhandled expression")

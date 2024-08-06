@@ -108,6 +108,7 @@ func (p *Parser) Parse(fa ...string) {
 			}
 		}
 	}
+	p.handleThisPackage()
 
 	// 当某个元素被标记为this时，表示需要当文件所在包中的所有类型都解析完毕之后，再去处理这部分元素的实际类型
 	// 函数的泛型类型单独处理
@@ -126,75 +127,75 @@ func (p *Parser) Parse(fa ...string) {
 	//     5.2 handleStructMethodResultsThisPackage
 	// 6. handleActual
 
-	for _, file := range p.Files {
-		//常量使用了iota的，到当前文件中找到结构体，作为对应结构体的枚举元素
-		// 暂不考虑类型和枚举声明在不同文件的情况
-		for _, c := range file.Consts {
-			for _, element := range file.Structs {
-				if element.Name == c.ElementString {
-					c.Item = element.Clone()
-					c.ItemType = types.ElementStruct
-					element.Elements[types.ElementConst] = append(element.Elements[types.ElementConst],
-						&types.Element{
-							Name:        c.Name,
-							ElementType: types.ElementConst,
-							Docs:        c.Docs,
-							Comment:     c.Comment,
-							Value:       c.Value,
-						})
-				}
-			}
-		}
-		//类型被标记为this的
-		//for _, s := range file.Structs {
-		//	// 类型的泛型类型声明在本包的
-		//	for _, typeParam := range s.Elements[types.ElementGeneric] {
-		//		if typeParam.PackagePath == types.PackageThisPackage {
-		//			for _, element := range file.Structs {
-		//				if element.Name == typeParam.ElementString {
-		//					typeParam.Item = element.Clone()
-		//					typeParam.PackagePath = element.PackagePath
-		//				}
-		//			}
-		//		}
-		//	}
-		//	//类型的字段的类型声明在本包的
-		//	for _, field := range s.Elements[types.ElementField] {
-		//		if field.PackagePath == types.PackageThisPackage {
-		//
-		//			for _, elementS := range file.Structs {
-		//				if field.ElementString == elementS.ElementString {
-		//					field.Item = elementS.Clone()
-		//					field.PackagePath = elementS.PackagePath
-		//				}
-		//			}
-		//		}
-		//	}
-		//
-		//	// 类型方法的参数和返回值类型声明在本包的
-		//	for _, method := range s.Elements[types.ElementMethod] {
-		//		for _, element := range method.Elements[types.ElementParam] {
-		//			if element.PackagePath == types.PackageThisPackage {
-		//				for _, elementS := range file.Structs {
-		//					if element.ElementString == elementS.ElementString {
-		//						element.Item = element.Clone()
-		//						element.PackagePath = elementS.PackagePath
-		//					}
-		//				}
-		//			}
-		//		}
-		//		for _, element := range method.Elements[types.ElementResult] {
-		//			for _, elementS := range file.Structs {
-		//				if element.ElementString == elementS.ElementString {
-		//					element.Item = element.Clone()
-		//					element.PackagePath = elementS.PackagePath
-		//				}
-		//			}
-		//		}
-		//	}
-		//
-		//}
-	}
+	//for _, file := range p.Files {
+	//常量使用了iota的，到当前文件中找到结构体，作为对应结构体的枚举元素
+	// 暂不考虑类型和枚举声明在不同文件的情况
+	//for _, c := range file.Consts {
+	//	for _, element := range file.Structs {
+	//		if element.Name == c.ElementString {
+	//			c.Item = element.Clone()
+	//			c.ItemType = types.ElementStruct
+	//			element.Elements[types.ElementConst] = append(element.Elements[types.ElementConst],
+	//				&types.Element{
+	//					Name:        c.Name,
+	//					ElementType: types.ElementConst,
+	//					Docs:        c.Docs,
+	//					Comment:     c.Comment,
+	//					Value:       c.Value,
+	//				})
+	//		}
+	//	}
+	//}
+	//类型被标记为this的
+	//for _, s := range file.Structs {
+	//	// 类型的泛型类型声明在本包的
+	//	for _, typeParam := range s.Elements[types.ElementGeneric] {
+	//		if typeParam.PackagePath == types.PackageThisPackage {
+	//			for _, element := range file.Structs {
+	//				if element.Name == typeParam.ElementString {
+	//					typeParam.Item = element.Clone()
+	//					typeParam.PackagePath = element.PackagePath
+	//				}
+	//			}
+	//		}
+	//	}
+	//	//类型的字段的类型声明在本包的
+	//	for _, field := range s.Elements[types.ElementField] {
+	//		if field.PackagePath == types.PackageThisPackage {
+	//
+	//			for _, elementS := range file.Structs {
+	//				if field.ElementString == elementS.ElementString {
+	//					field.Item = elementS.Clone()
+	//					field.PackagePath = elementS.PackagePath
+	//				}
+	//			}
+	//		}
+	//	}
+	//
+	//	// 类型方法的参数和返回值类型声明在本包的
+	//	for _, method := range s.Elements[types.ElementMethod] {
+	//		for _, element := range method.Elements[types.ElementParam] {
+	//			if element.PackagePath == types.PackageThisPackage {
+	//				for _, elementS := range file.Structs {
+	//					if element.ElementString == elementS.ElementString {
+	//						element.Item = element.Clone()
+	//						element.PackagePath = elementS.PackagePath
+	//					}
+	//				}
+	//			}
+	//		}
+	//		for _, element := range method.Elements[types.ElementResult] {
+	//			for _, elementS := range file.Structs {
+	//				if element.ElementString == elementS.ElementString {
+	//					element.Item = element.Clone()
+	//					element.PackagePath = elementS.PackagePath
+	//				}
+	//			}
+	//		}
+	//	}
+	//
+	//}
+	//}
 
 }
 
@@ -250,7 +251,7 @@ func (p *Parser) parseFile(file string) (*File, string) {
 		PackagePath: p.getPackage(file),
 		FilePath:    internal.Abs(file),
 	}
-	h := NewAstHandler(f, node, p.findFileByPackageAndType)
+	h := NewAstHandler(f, p.modPkg, node, p.findFileByPackageAndType)
 	h.HandlePackages()
 	h.HandleImports()
 	h.HandleElements()
@@ -354,26 +355,95 @@ func (p *Parser) handleThisPackage() {
 	for _, file := range p.Files {
 		p.handleConstThisPackage(file)
 		p.handleVarThisPackage(file)
+
 	}
-
 	p.handleFunctionThisPackage()
-
 	p.handleStructThisPackage()
 
 	p.handleActual()
 }
 func (p *Parser) handleStructThisPackage() {
-	p.handleFields()
-	p.handleStructMethodThisPackage()
+	for _, file := range p.Files {
+		for _, element := range file.Structs {
+			files := p.filterFilesByPackage(element.PackagePath)
+			for _, field := range element.Elements[types.ElementField] {
+				if field.PackagePath != types.PackageThisPackage {
+					continue
+				}
+				tmp := p.filterElementByName(files, field.TypeString)
+				if tmp != nil {
+					field.Item = tmp.Clone()
+					field.PackagePath = tmp.PackagePath
+					field.ItemType = tmp.ElementType
+					field.Signature = field.GetSignature()
+				}
+			}
+			for _, method := range element.Elements[types.ElementMethod] {
+				for _, param := range method.Elements[types.ElementParam] {
+					if param.PackagePath != types.PackageThisPackage {
+						continue
+					}
+					tmp := p.filterElementByName(files, param.TypeString)
+					if tmp != nil {
+						param.Item = tmp.Clone()
+						param.PackagePath = tmp.PackagePath
+						param.ItemType = tmp.ElementType
+						param.Signature = param.GetSignature()
+					}
+				}
+				for _, param := range method.Elements[types.ElementResult] {
+					if param.PackagePath != types.PackageThisPackage {
+						continue
+					}
+					tmp := p.filterElementByName(files, param.TypeString)
+					if tmp != nil {
+						param.Item = tmp.Clone()
+						param.PackagePath = tmp.PackagePath
+						param.ItemType = tmp.ElementType
+						param.Signature = param.GetSignature()
+					}
+				}
+
+			}
+		}
+	}
 }
 func (p *Parser) handleFields() {
 	// handle this package
 	// handle type param
 }
 func (p *Parser) handleFunctionThisPackage() {
-	p.handleTypeParamThisPackage()
-	p.handleParamsThisPackage()
-	p.handleResultsThisPackage()
+	for _, file := range p.Files {
+		for _, element := range file.Funcs {
+			files := p.filterFilesByPackage(element.PackagePath)
+			for _, param := range element.Elements[types.ElementParam] {
+				if param.PackagePath != types.PackageThisPackage {
+					continue
+				}
+				tmp := p.filterElementByName(files, param.TypeString)
+				if tmp != nil {
+					param.Item = tmp.Clone()
+					param.PackagePath = tmp.PackagePath
+					param.ItemType = tmp.ElementType
+					param.Signature = param.GetSignature()
+				}
+			}
+			for _, param := range element.Elements[types.ElementResult] {
+				if param.PackagePath != types.PackageThisPackage {
+					continue
+				}
+				tmp := p.filterElementByName(files, param.TypeString)
+				if tmp != nil {
+					param.Item = tmp.Clone()
+					param.PackagePath = tmp.PackagePath
+					param.ItemType = tmp.ElementType
+					param.Signature = param.GetSignature()
+				}
+			}
+
+		}
+
+	}
 
 }
 func (p *Parser) handleConstThisPackage(file *File) {
@@ -383,14 +453,15 @@ func (p *Parser) handleConstThisPackage(file *File) {
 			continue
 		}
 		files := p.filterFilesByPackage(element.PackagePath)
-		tmp := p.filterElementByName(files, element.Name)
+		tmp := p.filterElementByName(files, element.TypeString)
 		if tmp != nil {
-			element.Item = tmp.Clone()
-			element.ItemType = tmp.ElementType
+			//element.Item = tmp.Clone()
+			//element.ItemType = tmp.ElementType
 			if tmp.Elements == nil {
 				tmp.Elements = make(map[types.ElementType][]*types.Element)
 			}
-			tmp.Elements[types.ElementEnum] = append(element.Elements[types.ElementEnum], element.Clone())
+			tmp.Elements[types.ElementEnum] = append(tmp.Elements[types.ElementEnum], element.Clone())
+			element.Signature = element.GetSignature()
 		}
 
 	}
@@ -398,11 +469,15 @@ func (p *Parser) handleConstThisPackage(file *File) {
 }
 func (p *Parser) handleVarThisPackage(file *File) {
 	for _, element := range file.Vars {
+		if element.PackagePath != types.PackageThisPackage {
+			continue
+		}
 		files := p.filterFilesByPackage(element.PackagePath)
-		tmp := p.filterElementByName(files, element.Name)
+		tmp := p.filterElementByName(files, element.TypeString)
 		if tmp != nil {
 			element.Item = tmp.Clone()
 			element.ItemType = tmp.ElementType
+			element.Signature = element.GetSignature()
 		}
 	}
 }
@@ -420,4 +495,83 @@ func (p *Parser) handleStructMethodThisPackage() {
 func (p *Parser) handleStructMethodReceiverThisPackage() {}
 func (p *Parser) handleParamsThisPackage()               {}
 func (p *Parser) handleResultsThisPackage()              {}
-func (p *Parser) handleActual()                          {}
+func (p *Parser) handleActual() {
+	log.Println("处理泛型的实际映射类型，合并继承")
+	for _, file := range p.Files {
+		for _, eleStruct := range file.Structs {
+			if eleStruct.Name != "UserController" {
+				continue
+			}
+			if eleStruct.FromParent {
+				log.Printf("处理结构 %s \n", eleStruct.Name)
+				for _, eleField := range eleStruct.Elements[types.ElementField] {
+					if eleField.FromParent && eleField.Name == "" {
+						log.Printf("  处理字段 %s \n", eleField.TypeString)
+						//继承父级时，将当前结构中声明的实际类型拉取出来
+						typeParams := eleField.Elements[types.ElementGeneric]
+						log.Printf("    字段声明了 %d 个泛型参数 \n", len(typeParams))
+						// 赋值它的原始类型名 比如实际类型是 int 原始是声明为 T 的
+						// 方便后面方法处理的时候进行匹配
+						for _, param := range typeParams {
+							for _, originTypeParam := range eleField.Item.Elements[types.ElementGeneric] {
+								if originTypeParam.Index == param.Index {
+									param.Name = originTypeParam.Name
+								}
+							}
+						}
+						log.Printf("处理结构 %s 的字段\n", eleStruct.Name)
+						eleFieldType := eleField.Item
+						if eleFieldType != nil {
+							for _, eleFieldTypeField := range eleFieldType.Elements[types.ElementField] {
+								if !eleFieldTypeField.Private() {
+
+									newEle := eleFieldTypeField.Clone()
+									for _, e3 := range typeParams {
+										// 根据泛型的索引位置来确定实际类型
+										if newEle.Item != nil && newEle.Item.Name == e3.Name {
+											newEle.Actual = e3.Clone()
+
+											//e3.Name = newEle.Item.Name
+										}
+									}
+
+									eleStruct.Elements[types.ElementField] = append(eleStruct.Elements[types.ElementField], newEle)
+								}
+							}
+
+							for _, e2 := range eleFieldType.Elements[types.ElementMethod] {
+								if !e2.Private() {
+									newEle := e2.Clone()
+									for _, e3 := range newEle.Elements[types.ElementParam] {
+										if e3.Generic() {
+											for _, e4 := range typeParams {
+												if e3.Item.Name == e4.Name {
+													e3.Actual = e4.Clone()
+												}
+											}
+										}
+									}
+
+									for _, e3 := range newEle.Elements[types.ElementResult] {
+										if e3.Generic() {
+											for _, e4 := range typeParams {
+												if e3.Item.Name == e4.Name {
+													e3.Actual = e4.Clone()
+												}
+											}
+										}
+									}
+
+									eleStruct.Elements[types.ElementMethod] = append(eleStruct.Elements[types.ElementMethod], newEle)
+								}
+							}
+						}
+
+					}
+				}
+			}
+
+		}
+
+	}
+}
