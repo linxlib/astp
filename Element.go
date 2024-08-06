@@ -1,4 +1,4 @@
-package types
+package astp
 
 import (
 	"fmt"
@@ -11,16 +11,17 @@ import (
 type ElementType string
 
 const (
-	ElementNone   ElementType = "NONE"
-	ElementStruct ElementType = "STRUCT"
-	ElementField  ElementType = "FIELD"
-	ElementConst  ElementType = "CONST"
+	ElementNone ElementType = "NONE"
 
+	ElementStruct    ElementType = "STRUCT"
+	ElementField     ElementType = "FIELD"
+	ElementConst     ElementType = "CONST"
 	ElementVar       ElementType = "VAR"
-	ElementMethod    ElementType = "METHOD"
 	ElementFunc      ElementType = "FUNC"
-	ElementEnum      ElementType = "ENUM"
 	ElementInterface ElementType = "INTERFACE"
+
+	ElementMethod    ElementType = "METHOD"
+	ElementEnum      ElementType = "ENUM"
 	ElementReceiver  ElementType = "RECEIVER"
 	ElementGeneric   ElementType = "TYPE_PARAM"
 	ElementParam     ElementType = "PARAM"
@@ -47,6 +48,12 @@ var builtInPackages = map[string]bool{
 	"os":      true,
 }
 
+// ParseIt 返回一个类型是否需要进行解析（第三方包 系统内置包）
+func ParseIt(modPkg string, pkgPath string) bool {
+	return true
+}
+
+// CheckPackage 返回某个包是何种类型的包
 func CheckPackage(modPkg string, pkg string) string {
 	if pkg == PackageThisPackage || (strings.HasPrefix(pkg, modPkg) && pkg == modPkg) {
 		return PackageThisPackage
@@ -71,25 +78,24 @@ func CheckPackage(modPkg string, pkg string) string {
 }
 
 type Element struct {
-	Name          string      `json:",omitempty"` //名称
-	PackagePath   string      `json:",omitempty"` //包路径
-	PackageName   string      `json:",omitempty"` //包名
-	ElementType   ElementType `json:",omitempty"` //当前元素类型
-	ItemType      ElementType `json:",omitempty"` //元素类型
+	Name        string      `json:",omitempty"`
+	PackagePath string      `json:",omitempty"` //包路径
+	PackageName string      `json:",omitempty"` //包名
+	ElementType ElementType `json:",omitempty"` //当前元素类型
+
+	ItemType      ElementType `json:",omitempty"` //Item的元素类型
 	Item          *Element    `json:",omitempty"`
 	Index         int
-	Tag           reflect.StructTag `json:"-"`
-	TypeString    string            `json:",omitempty"`
-	ElementString string            `json:",omitempty"`
-	Signature     string            `json:",omitempty"`
-	Actual        *Element          `json:",omitempty"`
-	Docs          []string          `json:",omitempty"`
-	Comment       string            `json:",omitempty"`
-	rType         reflect.Type      `json:"-"`
-	rValue        reflect.Value     `json:"-"`
-	Value         any
-	FromParent    bool //表示当前元素 包含从父级继承而来的字段、方法、文档 或者 表示当前元素是继承而来
-	Elements      map[ElementType][]*Element
+	Tag           reflect.StructTag          `json:"-"`
+	TypeString    string                     `json:",omitempty"` //字段类型名
+	ElementString string                     `json:",omitempty"`
+	Docs          []string                   `json:",omitempty"` //上方的文档
+	Comment       string                     `json:",omitempty"` //后方的注释
+	rType         reflect.Type               `json:"-"`
+	rValue        reflect.Value              `json:"-"`
+	Value         any                        `json:",omitempty"` //值 一般为枚举时用到
+	FromParent    bool                       //表示当前元素 包含从父级继承而来的字段、方法、文档 或者 表示当前元素是继承而来
+	Elements      map[ElementType][]*Element // 子成员 比如字段 方法 泛型类型
 }
 
 func copySlice(src []*Element) []*Element {
@@ -128,8 +134,14 @@ func (b *Element) SetRValue(value reflect.Value) {
 func (b *Element) GetRValue() reflect.Value {
 	return b.rValue
 }
+func (b *Element) SetValue(i any) {
+	b.Value = i
+}
+func (b *Element) GetValue() any {
+	return b.Value
+}
 
-func (b *Element) GetSignature() string {
+func (b *Element) Signature() string {
 	switch b.ElementType {
 	case ElementStruct:
 		builder := strings.Builder{}
@@ -195,7 +207,7 @@ func (b *Element) GetSignature() string {
 			if i > 0 {
 				builder.WriteRune(',')
 			}
-			builder.WriteString(element.GetSignature())
+			builder.WriteString(element.Signature())
 		}
 		builder.WriteRune(')')
 		builder.WriteString(b.Name)
@@ -204,7 +216,7 @@ func (b *Element) GetSignature() string {
 			if i > 0 {
 				builder.WriteRune(',')
 			}
-			builder.WriteString(element.GetSignature())
+			builder.WriteString(element.Signature())
 		}
 		builder.WriteRune(')')
 		builder.WriteRune('(')
@@ -212,7 +224,7 @@ func (b *Element) GetSignature() string {
 			if i > 0 {
 				builder.WriteRune(',')
 			}
-			builder.WriteString(element.GetSignature())
+			builder.WriteString(element.Signature())
 		}
 		builder.WriteRune(')')
 		builder.WriteString("{}")
@@ -229,7 +241,7 @@ func (b *Element) GetSignature() string {
 				if i > 0 {
 					builder.WriteRune(',')
 				}
-				builder.WriteString(typeParam.GetSignature())
+				builder.WriteString(typeParam.Signature())
 			}
 			builder.WriteRune(']')
 		}
@@ -239,7 +251,7 @@ func (b *Element) GetSignature() string {
 			if i > 0 {
 				builder.WriteRune(',')
 			}
-			builder.WriteString(element.GetSignature())
+			builder.WriteString(element.Signature())
 		}
 		builder.WriteRune(')')
 		builder.WriteRune('(')
@@ -247,7 +259,7 @@ func (b *Element) GetSignature() string {
 			if i > 0 {
 				builder.WriteRune(',')
 			}
-			builder.WriteString(element.GetSignature())
+			builder.WriteString(element.Signature())
 		}
 		builder.WriteRune(')')
 		builder.WriteString("{}")
@@ -295,7 +307,6 @@ func (b *Element) Clone(i ...int) *Element {
 		Index:       newIndex,
 		Tag:         b.Tag,
 		TypeString:  b.TypeString,
-		Actual:      b.Actual.Clone(),
 		Docs:        b.Docs,
 		Comment:     b.Comment,
 		Value:       b.Value,
@@ -323,4 +334,28 @@ func PackagePath(pkgName string, typeName string) string {
 		return ""
 	}
 
+}
+
+func (b *Element) VisitElements(elementType ElementType, check func(element *Element) bool, f func(element *Element)) {
+	for _, e := range b.Elements[elementType] {
+		if !check(e) {
+			continue
+		}
+		f(e)
+	}
+}
+func (b *Element) VisitElementsAll(elementType ElementType, f func(element *Element)) {
+	for _, e := range b.Elements[elementType] {
+		f(e)
+	}
+}
+func (b *Element) ElementsAll(elementType ElementType) []*Element {
+	return b.Elements[elementType]
+}
+func (b *Element) MustGetElement(elementType ElementType) *Element {
+	elements := b.Elements[elementType]
+	for _, element := range elements {
+		return element
+	}
+	return nil
 }

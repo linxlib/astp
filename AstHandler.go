@@ -2,7 +2,6 @@ package astp
 
 import (
 	"github.com/linxlib/astp/internal"
-	"github.com/linxlib/astp/types"
 	"go/ast"
 	"go/token"
 	"log"
@@ -12,7 +11,7 @@ import (
 	"strings"
 )
 
-type FindHandler func(pkg string, name string) *types.Element
+type FindHandler func(pkg string, name string) *Element
 
 func NewAstHandler(f *File, modPkg string, astFile *ast.File, findHandler FindHandler) *AstHandler {
 	return &AstHandler{
@@ -35,18 +34,25 @@ func (a *AstHandler) Result() (*File, string) {
 }
 
 func (a *AstHandler) HandlePackages() *AstHandler {
-	log.Printf("parse file package: %s\n", a.file.Name)
+	log.Printf("[%s] 解析文件头\n", a.file.Name)
 	a.file.PackageName = a.af.Name.Name
-	a.file.Docs = internal.GetDocs(a.af.Doc)
 
-	if a.af.Comments != nil {
-		for _, comment := range a.af.Comments {
-			a.file.Comments = append(a.file.Comments, internal.GetComments(comment)...)
+	// 只处理main包的文档和注释，其他散落在外的注释无需解析.
+	// 其他文件中的注释 可由对应模块进行解析
+	if a.file.IsMain() {
+		a.file.Docs = internal.GetDocs(a.af.Doc)
+
+		if a.af.Comments != nil {
+			for _, comment := range a.af.Comments {
+				a.file.Comments = append(a.file.Comments, internal.GetComments(comment)...)
+			}
 		}
 	}
+
 	return a
 }
 func (a *AstHandler) HandleImports() *AstHandler {
+	log.Printf("[%s] 解析导入项 \n", a.file.Name)
 	a.file.Imports = make([]*Import, len(a.af.Imports))
 	for idx, spec := range a.af.Imports {
 		i := new(Import)
@@ -66,7 +72,6 @@ func (a *AstHandler) HandleImports() *AstHandler {
 		i.ImportPath = v
 		a.file.Imports[idx] = i
 	}
-	log.Printf("parse file imports: count: %d", len(a.af.Imports))
 	return a
 }
 
@@ -79,7 +84,7 @@ func (a *AstHandler) HandleElements() *AstHandler {
 }
 
 func (a *AstHandler) handleConsts() {
-	log.Printf("parse file const:%s\n", a.file.PackagePath)
+	log.Printf("[%s] 解析常量区块\n", a.file.Name)
 	for _, decl := range a.af.Decls {
 		switch decl := decl.(type) {
 		case *ast.GenDecl:
@@ -94,12 +99,12 @@ func (a *AstHandler) handleConsts() {
 					switch spec := spec.(type) {
 					case *ast.ValueSpec:
 						for i, v := range spec.Names {
-							vv := &types.Element{
+							vv := &Element{
 								Name:        v.Name,
 								PackagePath: a.file.PackagePath,
 								PackageName: a.file.PackageName,
-								ElementType: types.ElementConst,
-								ItemType:    types.ElementNone,
+								ElementType: ElementConst,
+								ItemType:    ElementNone,
 								Index:       i,
 								Docs:        internal.GetDocs(spec.Doc),
 								Comment:     internal.GetComment(spec.Comment),
@@ -151,7 +156,7 @@ func (a *AstHandler) handleConsts() {
 								}
 							}
 							if isEnum {
-								vv.ElementType = types.ElementEnum
+								vv.ElementType = ElementEnum
 								vv.TypeString = constAreaType
 							}
 
@@ -214,7 +219,7 @@ func (a *AstHandler) findPackage(expr ast.Expr) []*PkgType {
 		return []*PkgType{
 			&PkgType{
 				IsGeneric: false,
-				PkgPath:   types.PackagePath("", spec.Name),
+				PkgPath:   PackagePath("", spec.Name),
 				TypeName:  spec.Name,
 			},
 		}
@@ -227,7 +232,7 @@ func (a *AstHandler) findPackage(expr ast.Expr) []*PkgType {
 				pkgPath = i3.ImportPath
 			}
 		}
-		pp := types.PackagePath(pkgName, typeName)
+		pp := PackagePath(pkgName, typeName)
 		if pp != "" {
 			pkgPath = pp
 		}
@@ -288,7 +293,7 @@ func (a *AstHandler) findPackage(expr ast.Expr) []*PkgType {
 		return []*PkgType{
 			&PkgType{
 				IsGeneric: false,
-				PkgPath:   types.PackageBuiltIn,
+				PkgPath:   PackageBuiltIn,
 				TypeName:  "interface{}",
 			},
 		}
@@ -298,30 +303,30 @@ func (a *AstHandler) findPackage(expr ast.Expr) []*PkgType {
 	panic("unreachable")
 }
 
-func (a *AstHandler) parseResults(params *ast.FieldList, tParams []*types.Element) []*types.Element {
+func (a *AstHandler) parseResults(params *ast.FieldList, tParams []*Element) []*Element {
 	if params == nil {
 		return nil
 	}
-	log.Printf("parse method result: count: %d \n", len(params.List))
-	pars := make([]*types.Element, 0)
+	log.Printf("        解析返回值: 数量: %d \n", len(params.List))
+	pars := make([]*Element, 0)
 	var pIndex int
 	for _, param := range params.List {
 		if param.Names != nil {
 			for _, name := range param.Names {
-				par := &types.Element{
+				par := &Element{
 					Index:       pIndex,
 					Name:        name.Name,
 					PackagePath: a.file.PackagePath,
 					PackageName: a.file.PackageName,
-					ElementType: types.ElementField,
+					ElementType: ElementField,
 					Docs:        internal.GetDocs(param.Doc),
 					Comment:     internal.GetComment(param.Comment),
 				}
 
 				ps := a.findPackage(param.Type)
 				for _, p := range ps {
-					tmp := types.CheckPackage(a.modPkg, p.PkgPath)
-					if tmp != types.PackageThisPackage && tmp != types.PackageBuiltIn && tmp != types.PackageThird {
+					tmp := CheckPackage(a.modPkg, p.PkgPath)
+					if tmp != PackageThisPackage && tmp != PackageBuiltIn && tmp != PackageThird {
 						par.Item = a.findHandler(p.PkgPath, p.TypeName)
 						par.ItemType = par.Item.ItemType
 						par.PackagePath = par.Item.PackagePath
@@ -348,19 +353,19 @@ func (a *AstHandler) parseResults(params *ast.FieldList, tParams []*types.Elemen
 			}
 		} else { //返回值可能为隐式参数
 
-			par := &types.Element{
+			par := &Element{
 				Index:       pIndex,
 				Name:        "",
 				PackagePath: a.file.PackagePath,
 				PackageName: a.file.PackageName,
-				ElementType: types.ElementField,
+				ElementType: ElementField,
 				Docs:        internal.GetDocs(param.Doc),
 				Comment:     internal.GetComment(param.Comment),
 			}
 			ps := a.findPackage(param.Type)
 			for _, p := range ps {
-				tmp := types.CheckPackage(a.modPkg, p.PkgPath)
-				if tmp != types.PackageThisPackage && tmp != types.PackageBuiltIn && tmp != types.PackageThird {
+				tmp := CheckPackage(a.modPkg, p.PkgPath)
+				if tmp != PackageThisPackage && tmp != PackageBuiltIn && tmp != PackageThird {
 					par.Item = a.findHandler(p.PkgPath, p.TypeName)
 					par.ItemType = par.Item.ItemType
 					par.PackagePath = par.Item.PackagePath
@@ -387,29 +392,29 @@ func (a *AstHandler) parseResults(params *ast.FieldList, tParams []*types.Elemen
 	return pars
 }
 
-func (a *AstHandler) parseParams(params *ast.FieldList, tParams []*types.Element) []*types.Element {
+func (a *AstHandler) parseParams(params *ast.FieldList, tParams []*Element) []*Element {
 	if params == nil {
 		return nil
 	}
-	log.Printf("parse method params: count: %d \n", len(params.List))
-	pars := make([]*types.Element, 0)
+	log.Printf("        解析参数: 数量: %d \n", len(params.List))
+	pars := make([]*Element, 0)
 	var pIndex int
 
 	for _, param := range params.List {
 		for _, name := range param.Names {
-			par := &types.Element{
+			par := &Element{
 				Index:       pIndex,
 				Name:        name.Name,
 				PackagePath: a.file.PackagePath,
 				PackageName: a.file.PackageName,
-				ElementType: types.ElementField,
+				ElementType: ElementField,
 				Docs:        internal.GetDocs(param.Doc),
 				Comment:     internal.GetComment(param.Comment),
 			}
 			ps := a.findPackage(param.Type)
 			for _, p := range ps {
-				tmp := types.CheckPackage(a.modPkg, p.PkgPath)
-				if tmp != types.PackageThisPackage && tmp != types.PackageBuiltIn && tmp != types.PackageThird {
+				tmp := CheckPackage(a.modPkg, p.PkgPath)
+				if tmp != PackageThisPackage && tmp != PackageBuiltIn && tmp != PackageThird {
 					par.Item = a.findHandler(p.PkgPath, p.TypeName)
 					par.ItemType = par.Item.ItemType
 					par.PackagePath = par.Item.PackagePath
@@ -435,17 +440,17 @@ func (a *AstHandler) parseParams(params *ast.FieldList, tParams []*types.Element
 	return pars
 }
 
-func (a *AstHandler) parseFields(fields []*ast.Field, tParams []*types.Element) []*types.Element {
-	log.Printf("parse fields: count: %d\n", len(fields))
-	var sf = make([]*types.Element, 0)
+func (a *AstHandler) parseFields(fields []*ast.Field, tParams []*Element) []*Element {
+	log.Printf("    解析结构体字段: %d\n", len(fields))
+	var sf = make([]*Element, 0)
 	for idx, field := range fields {
-		af1 := new(types.Element)
+		af1 := new(Element)
 		af1.Index = idx
 		af1.Comment = internal.GetComment(field.Comment)
 		af1.Docs = internal.GetDocs(field.Doc)
 		af1.PackagePath = a.file.PackagePath
 		af1.PackageName = a.file.PackageName
-		af1.ElementType = types.ElementField
+		af1.ElementType = ElementField
 		if field.Names != nil {
 			af1.Name = field.Names[0].Name
 		}
@@ -453,8 +458,8 @@ func (a *AstHandler) parseFields(fields []*ast.Field, tParams []*types.Element) 
 		ps := a.findPackage(field.Type)
 		idx1 := 0
 		for idx2, p := range ps {
-			tmp := types.CheckPackage(a.modPkg, p.PkgPath)
-			if tmp != types.PackageThisPackage && tmp != types.PackageBuiltIn && tmp != types.PackageThird && idx2 == 0 {
+			tmp := CheckPackage(a.modPkg, p.PkgPath)
+			if tmp != PackageThisPackage && tmp != PackageBuiltIn && tmp != PackageThird && idx2 == 0 {
 
 				af1.Item = a.findHandler(p.PkgPath, p.TypeName)
 				af1.ItemType = af1.Item.ElementType
@@ -463,13 +468,12 @@ func (a *AstHandler) parseFields(fields []*ast.Field, tParams []*types.Element) 
 				af1.PackageName = af1.Item.PackageName
 
 				if p.IsGeneric {
-					//af1.Item.ItemType = types.ElementGeneric
 					if af1.Elements == nil {
-						af1.Elements = make(map[types.ElementType][]*types.Element)
+						af1.Elements = make(map[ElementType][]*Element)
 					}
-					af1.Elements[types.ElementGeneric] = append(af1.Elements[types.ElementGeneric], &types.Element{
+					af1.Elements[ElementGeneric] = append(af1.Elements[ElementGeneric], &Element{
 						Name:          p.TypeName,
-						ElementType:   types.ElementGeneric,
+						ElementType:   ElementGeneric,
 						Index:         idx1,
 						TypeString:    p.TypeName,
 						ElementString: p.TypeName,
@@ -481,17 +485,15 @@ func (a *AstHandler) parseFields(fields []*ast.Field, tParams []*types.Element) 
 
 			} else {
 				if p.IsGeneric {
-					//af1.Item.ItemType = types.ElementGeneric
 					if af1.Elements == nil {
-						af1.Elements = make(map[types.ElementType][]*types.Element)
+						af1.Elements = make(map[ElementType][]*Element)
 					}
-					//TODO: 泛型中 如果是结构体，则也需要去解析下 将其文档加入到这里
-					tmp2 := types.CheckPackage(a.modPkg, p.PkgPath)
-					if tmp2 == types.PackageOther || tmp2 == types.PackageThird {
+					tmp2 := CheckPackage(a.modPkg, p.PkgPath)
+					if tmp2 == PackageOther || tmp2 == PackageThird {
 						tmp1 := a.findHandler(p.PkgPath, p.TypeName)
-						af1.Elements[types.ElementGeneric] = append(af1.Elements[types.ElementGeneric], &types.Element{
+						af1.Elements[ElementGeneric] = append(af1.Elements[ElementGeneric], &Element{
 							Name:          tmp1.Name,
-							ElementType:   types.ElementGeneric,
+							ElementType:   ElementGeneric,
 							Index:         idx1,
 							TypeString:    tmp1.TypeString,
 							ElementString: tmp1.ElementString,
@@ -502,9 +504,9 @@ func (a *AstHandler) parseFields(fields []*ast.Field, tParams []*types.Element) 
 							FromParent:    true,
 						})
 					} else {
-						af1.Elements[types.ElementGeneric] = append(af1.Elements[types.ElementGeneric], &types.Element{
+						af1.Elements[ElementGeneric] = append(af1.Elements[ElementGeneric], &Element{
 							Name:          p.TypeName,
-							ElementType:   types.ElementGeneric,
+							ElementType:   ElementGeneric,
 							Index:         idx1,
 							TypeString:    p.TypeName,
 							ElementString: p.TypeName,
@@ -515,8 +517,6 @@ func (a *AstHandler) parseFields(fields []*ast.Field, tParams []*types.Element) 
 
 					idx1++
 				}
-				//af1.PackagePath = tmp
-				//af1.TypeString = p.TypeName
 				// tParams
 				for _, tParam := range tParams {
 					if tParam.Name == p.TypeName {
@@ -532,11 +532,6 @@ func (a *AstHandler) parseFields(fields []*ast.Field, tParams []*types.Element) 
 
 		if af1.Name == "" || af1.Name == "_" {
 			af1.FromParent = true
-
-			// 将继承的字段合并到当前结构
-			//if af1.Item != nil && af1.Item.Elements[types.ElementField] != nil {
-			//	sf = append(sf, af1.Item.Elements[types.ElementField]...)
-			//}
 		}
 
 		if field.Tag != nil {
@@ -548,19 +543,20 @@ func (a *AstHandler) parseFields(fields []*ast.Field, tParams []*types.Element) 
 	return sf
 }
 
-func (a *AstHandler) parseReceiver(fieldList *ast.FieldList, s *types.Element) *types.Element {
-	result := &types.Element{
+func (a *AstHandler) parseReceiver(fieldList *ast.FieldList, s *Element) *Element {
+
+	result := &Element{
 		PackagePath: a.file.PackagePath,
 		PackageName: a.file.PackageName,
-		ElementType: types.ElementReceiver,
+		ElementType: ElementReceiver,
 		Index:       0,
 
-		Elements: make(map[types.ElementType][]*types.Element),
+		Elements: make(map[ElementType][]*Element),
 	}
 	receiver := fieldList.List[0]
 	name := fieldList.List[0].Names[0].Name
 	result.Name = name
-	result.ItemType = types.ElementStruct
+	result.ItemType = ElementStruct
 	result.Item = s.Clone()
 	switch decl := receiver.Type.(type) {
 	case *ast.Ident:
@@ -588,9 +584,9 @@ func (a *AstHandler) parseReceiver(fieldList *ast.FieldList, s *types.Element) *
 	return result
 }
 
-func (a *AstHandler) parseMethods(s *types.Element) []*types.Element {
-
-	methods := make([]*types.Element, 0)
+func (a *AstHandler) parseMethods(s *Element) []*Element {
+	log.Printf("    解析结构体方法: %s\n", s.Name)
+	methods := make([]*Element, 0)
 	for idx, decl := range a.af.Decls {
 		switch decl := decl.(type) {
 		case *ast.FuncDecl:
@@ -599,19 +595,19 @@ func (a *AstHandler) parseMethods(s *types.Element) []*types.Element {
 			}
 			recv := a.parseReceiver(decl.Recv, s)
 			if recv.Item != nil && recv.Item.Name == s.Name {
-				log.Printf("parse methods: %s \n", decl.Name.Name)
-				method := &types.Element{
+				log.Printf("      解析方法: %s \n", decl.Name.Name)
+				method := &Element{
 					Index:       idx,
 					PackagePath: a.file.PackagePath,
 					Name:        decl.Name.Name,
 					Docs:        internal.GetDocs(decl.Doc),
-					ElementType: types.ElementMethod,
-					Elements:    make(map[types.ElementType][]*types.Element),
+					ElementType: ElementMethod,
+					Elements:    make(map[ElementType][]*Element),
 				}
-				method.Elements[types.ElementReceiver] = []*types.Element{recv}
+				method.Elements[ElementReceiver] = []*Element{recv}
 
-				method.Elements[types.ElementParam] = a.parseParams(decl.Type.Params, s.Elements[types.ElementGeneric])
-				method.Elements[types.ElementResult] = a.parseResults(decl.Type.Results, s.Elements[types.ElementGeneric])
+				method.Elements[ElementParam] = a.parseParams(decl.Type.Params, s.Elements[ElementGeneric])
+				method.Elements[ElementResult] = a.parseResults(decl.Type.Results, s.Elements[ElementGeneric])
 
 				methods = append(methods, method)
 			}
@@ -622,8 +618,8 @@ func (a *AstHandler) parseMethods(s *types.Element) []*types.Element {
 }
 
 func (a *AstHandler) handleVars() {
-	log.Printf("parse file vars:%s\n", a.file.PackagePath)
-	a.file.Vars = make([]*types.Element, 0)
+	log.Printf("[%s] 解析变量区块\n", a.file.Name)
+	a.file.Vars = make([]*Element, 0)
 	for _, decl := range a.af.Decls {
 		switch decl := decl.(type) {
 		case *ast.GenDecl:
@@ -633,12 +629,12 @@ func (a *AstHandler) handleVars() {
 					switch spec := spec.(type) {
 					case *ast.ValueSpec:
 						for i, v := range spec.Names {
-							vv := &types.Element{
+							vv := &Element{
 								Name:        v.Name,
 								PackagePath: a.file.PackagePath,
 								PackageName: a.file.PackageName,
-								ElementType: types.ElementVar,
-								ItemType:    types.ElementNone,
+								ElementType: ElementVar,
+								ItemType:    ElementNone,
 								Index:       i,
 								Docs:        internal.GetDocs(spec.Doc),
 								Comment:     internal.GetComment(spec.Comment),
@@ -651,8 +647,8 @@ func (a *AstHandler) handleVars() {
 							}
 							ps := a.findPackage(spec.Type)
 							for _, p := range ps {
-								tmp := types.CheckPackage(a.modPkg, p.PkgPath)
-								if tmp != types.PackageThisPackage && tmp != types.PackageBuiltIn && tmp != types.PackageThird {
+								tmp := CheckPackage(a.modPkg, p.PkgPath)
+								if tmp != PackageThisPackage && tmp != PackageBuiltIn && tmp != PackageThird {
 									vv.Item = a.findHandler(p.PkgPath, p.TypeName)
 									vv.ItemType = vv.Item.ItemType
 									vv.TypeString = vv.Item.TypeString
@@ -694,14 +690,14 @@ func (a *AstHandler) handleTypeParam(expr ast.Expr) string {
 // 2. 对于方法，需要带上其receiver的泛型参数
 //
 // 3. 对于函数，则在解析其参数和返回值时才需要带上函数自身定义的泛型参数
-func (a *AstHandler) parseTypeParams(list *ast.FieldList, tParams []*types.Element) []*types.Element {
+func (a *AstHandler) parseTypeParams(list *ast.FieldList, tParams []*Element) []*Element {
 	log.Printf("parse type param: count: %d", len(list.List))
-	result := make([]*types.Element, 0)
+	result := make([]*Element, 0)
 	tpIndex := 0
 	for _, field := range list.List {
 
 		for _, name := range field.Names {
-			t := new(types.Element)
+			t := new(Element)
 			t.Index = tpIndex
 			tpIndex++
 			switch spec := field.Type.(type) {
@@ -709,22 +705,22 @@ func (a *AstHandler) parseTypeParams(list *ast.FieldList, tParams []*types.Eleme
 				ss := a.parseBinaryExpr(spec)
 				t.TypeString = strings.Join(ss, "|")
 				if internal.IsInternalType(ss[0]) {
-					t.PackagePath = types.PackageBuiltIn
+					t.PackagePath = PackageBuiltIn
 				}
 			case *ast.Ident:
 				t.TypeString = spec.String()
 				if internal.IsInternalType(t.TypeString) {
-					t.PackagePath = types.PackageBuiltIn
+					t.PackagePath = PackageBuiltIn
 				}
 			}
 			//t.PackagePath = types.PackageThisPackage
 			t.PackageName = a.file.PackageName
 			t.Name = name.Name
-			t.ElementType = types.ElementGeneric
+			t.ElementType = ElementGeneric
 			ps := a.findPackage(field.Type)
 			for _, p := range ps {
-				tmp := types.CheckPackage(a.modPkg, p.PkgPath)
-				if tmp != types.PackageThisPackage && tmp != types.PackageBuiltIn && tmp != types.PackageThird {
+				tmp := CheckPackage(a.modPkg, p.PkgPath)
+				if tmp != PackageThisPackage && tmp != PackageBuiltIn && tmp != PackageThird {
 
 					t.Item = a.findHandler(p.PkgPath, p.TypeName)
 					t.ItemType = t.Item.ItemType
@@ -751,7 +747,7 @@ func (a *AstHandler) parseTypeParams(list *ast.FieldList, tParams []*types.Eleme
 }
 
 func (a *AstHandler) handleStructs() {
-	log.Printf("parse file structs:%s\n", a.file.PackagePath)
+	log.Printf("[%s] 解析结构体\n", a.file.Name)
 	for _, decl := range a.af.Decls {
 		switch decl := decl.(type) {
 		case *ast.GenDecl:
@@ -759,17 +755,16 @@ func (a *AstHandler) handleStructs() {
 				for _, spec := range decl.Specs {
 					switch spec := spec.(type) {
 					case *ast.TypeSpec:
-
-						e := &types.Element{
+						e := &Element{
 							Name:          spec.Name.Name,
 							PackagePath:   a.file.PackagePath,
 							PackageName:   a.file.PackageName,
-							ElementType:   types.ElementStruct,
+							ElementType:   ElementStruct,
 							TypeString:    spec.Name.Name,
 							ElementString: spec.Name.Name,
 							Index:         0,
 							Comment:       internal.GetComment(spec.Comment),
-							Elements:      make(map[types.ElementType][]*types.Element),
+							Elements:      make(map[ElementType][]*Element),
 						}
 						if spec.Doc == nil {
 							e.Docs = internal.GetDocs(decl.Doc)
@@ -777,50 +772,36 @@ func (a *AstHandler) handleStructs() {
 							e.Docs = internal.GetDocs(spec.Doc)
 						}
 						if spec.TypeParams != nil {
-							e.Elements[types.ElementGeneric] = a.parseTypeParams(spec.TypeParams, []*types.Element{})
+							e.Elements[ElementGeneric] = a.parseTypeParams(spec.TypeParams, []*Element{})
 						}
 						switch spec1 := spec.Type.(type) {
 						case *ast.StructType:
 							{
-								log.Printf("parse struct fields:%s\n", e.Name)
-								e.Elements[types.ElementField] = a.parseFields(spec1.Fields.List, e.Elements[types.ElementGeneric])
-								log.Printf("parse struct methods:%s\n", e.Name)
+								log.Printf("  解析结构体字段: %s\n", e.Name)
+								e.Elements[ElementField] = a.parseFields(spec1.Fields.List, e.Elements[ElementGeneric])
+								log.Printf("  解析结构体方法:%s\n", e.Name)
 								methods := a.parseMethods(e)
-								log.Printf("parse struct methods:count:%d\n", len(methods))
-								e.Elements[types.ElementMethod] = append(e.Elements[types.ElementMethod], methods...)
+								e.Elements[ElementMethod] = append(e.Elements[ElementMethod], methods...)
 
-								for _, field := range e.Elements[types.ElementField] {
+								for _, field := range e.Elements[ElementField] {
 									if field.FromParent {
 										e.FromParent = true
-										// TODO: only export method
-										//if field.Item != nil && field.PackagePath != types.PackageThisPackage && len(field.Item.Elements[types.ElementMethod]) > 0 {
-										//	// TODO: fill parent method with actual param type
-										//	for _, method := range field.Item.Elements[types.ElementMethod] {
-										//		for _, param := range method.Elements[types.ElementParam] {
-										//			param.PackagePath = a.file.PackagePath
-										//
-										//		}
-										//	}
-										//
-										//	field.Item.Elements[types.ElementMethod] = append(field.Item.Elements[types.ElementMethod], field.Item.Elements[types.ElementMethod]...)
-										//	e.Docs = append(e.Docs, field.Item.Docs...)
-										//}
-
+										break
 									}
 								}
 
 								// 将结构体的方法加一份到文件的方法列表
 								if a.file.Methods == nil {
-									a.file.Methods = make([]*types.Element, 0)
+									a.file.Methods = make([]*Element, 0)
 								}
 								a.file.Methods = append(a.file.Methods, methods...)
 
 							}
 
 						case *ast.InterfaceType:
-							log.Printf("parse interface:%s\n", e.Name)
-							e.ElementType = types.ElementInterface
-							e.Elements[types.ElementInterface] = a.parseInterfaces(spec1.Methods.List, e.Elements[types.ElementGeneric])
+							log.Printf("  解析接口类型:%s\n", e.Name)
+							e.ElementType = ElementInterface
+							e.Elements[ElementInterface] = a.parseInterfaces(spec1.Methods.List, e.Elements[ElementGeneric])
 						default:
 
 						}
@@ -834,31 +815,31 @@ func (a *AstHandler) handleStructs() {
 
 }
 func (a *AstHandler) handleFunctions() {
-	log.Printf("parse functions: %s \n", a.file.PackagePath)
-	methods := make([]*types.Element, 0)
+	log.Printf("[%s] 解析函数\n", a.file.Name)
+	methods := make([]*Element, 0)
 	funcIndex := 0
 	for _, decl := range a.af.Decls {
 		switch decl := decl.(type) {
 		case *ast.FuncDecl:
 			if decl.Recv == nil {
 
-				method := &types.Element{
+				method := &Element{
 					PackagePath: a.file.PackagePath,
 					PackageName: a.file.PackageName,
 					Name:        decl.Name.Name,
 					Index:       funcIndex,
 					Docs:        internal.GetDocs(decl.Doc),
-					ElementType: types.ElementFunc,
+					ElementType: ElementFunc,
 					TypeString:  decl.Name.Name,
-					Elements:    make(map[types.ElementType][]*types.Element),
+					Elements:    make(map[ElementType][]*Element),
 				}
 				funcIndex++
 
 				if decl.Type.TypeParams != nil {
-					method.Elements[types.ElementGeneric] = a.parseTypeParams(decl.Type.TypeParams, []*types.Element{})
+					method.Elements[ElementGeneric] = a.parseTypeParams(decl.Type.TypeParams, []*Element{})
 				}
-				method.Elements[types.ElementParam] = a.parseParams(decl.Type.Params, method.Elements[types.ElementGeneric])
-				method.Elements[types.ElementResult] = a.parseResults(decl.Type.Results, method.Elements[types.ElementGeneric])
+				method.Elements[ElementParam] = a.parseParams(decl.Type.Params, method.Elements[ElementGeneric])
+				method.Elements[ElementResult] = a.parseResults(decl.Type.Results, method.Elements[ElementGeneric])
 				methods = append(methods, method)
 			}
 
@@ -867,41 +848,41 @@ func (a *AstHandler) handleFunctions() {
 	a.file.Funcs = methods
 }
 
-func (a *AstHandler) parseInterfaces(list []*ast.Field, tParams []*types.Element) []*types.Element {
+func (a *AstHandler) parseInterfaces(list []*ast.Field, tParams []*Element) []*Element {
 	log.Printf("parse interface: method count: %d \n", len(list))
-	interaceFields := make([]*types.Element, 0)
+	interaceFields := make([]*Element, 0)
 
 	for i, field := range list {
 		name := ""
 		if field.Names != nil {
 			name = field.Names[0].Name
 		}
-		item := &types.Element{
+		item := &Element{
 			Name:        name,
 			PackagePath: a.file.PackagePath,
 			PackageName: a.file.PackageName,
 			Index:       i,
 			Docs:        internal.GetDocs(field.Doc),
 			Comment:     internal.GetComment(field.Comment),
-			Elements:    make(map[types.ElementType][]*types.Element),
+			Elements:    make(map[ElementType][]*Element),
 		}
 		switch spec := field.Type.(type) {
 		case *ast.FuncType:
-			item.ElementType = types.ElementMethod
-			item.Elements[types.ElementParam] = a.parseParams(spec.Params, tParams)
-			item.Elements[types.ElementResult] = a.parseParams(spec.Results, tParams)
+			item.ElementType = ElementMethod
+			item.Elements[ElementParam] = a.parseParams(spec.Params, tParams)
+			item.Elements[ElementResult] = a.parseParams(spec.Results, tParams)
 			item.TypeString = name
 		case *ast.BinaryExpr:
-			item.ElementType = types.ElementConstrain
+			item.ElementType = ElementConstrain
 			vv := a.parseBinaryExpr(spec)
 			item.TypeString = strings.Join(vv, "|")
 			item.ElementString = strings.Join(vv, "|")
 		case *ast.Ident:
-			item.ElementType = types.ElementConstrain
+			item.ElementType = ElementConstrain
 			item.ElementString = spec.Name
 			item.TypeString = spec.Name
 		default:
-			item.ElementType = types.ElementConstrain
+			item.ElementType = ElementConstrain
 			item.ElementString = "fuck!!!! here is type constraints!"
 			item.TypeString = ""
 		}
