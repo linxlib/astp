@@ -322,7 +322,6 @@ func (b *Element) Clone(i ...int) *Element {
 	return e
 }
 
-// TODO: 需要判断 1. 内置类型 2. 内置包 3. 第三方包
 func PackagePath(pkgName string, typeName string) string {
 	if internal.IsInternalType(typeName) {
 		return PackageBuiltIn

@@ -22,13 +22,17 @@ func NewAstHandler(f *File, modPkg string, astFile *ast.File, findHandler FindHa
 	}
 }
 
+// AstHandler ast树解析类，一个代表一个go文件
 type AstHandler struct {
-	file        *File
-	af          *ast.File
+	file *File
+	af   *ast.File
+	// 用于在项目的另外一个包中查找一个类型
 	findHandler FindHandler
-	modPkg      string
+	// 项目的mod名
+	modPkg string
 }
 
+// Result 返回 File 对象
 func (a *AstHandler) Result() (*File, string) {
 	return a.file, internal.GetKey(a.file.PackagePath, filepath.Base(a.file.FilePath))
 }
@@ -37,6 +41,7 @@ func (a *AstHandler) HandlePackages() *AstHandler {
 	log.Printf("[%s] 解析文件头\n", a.file.Name)
 	a.file.PackageName = a.af.Name.Name
 
+	// 由于其他结构体 函数等上面的注释也会在 a.af 中被找到
 	// 只处理main包的文档和注释，其他散落在外的注释无需解析.
 	// 其他文件中的注释 可由对应模块进行解析
 	if a.file.IsMain() {
@@ -76,14 +81,14 @@ func (a *AstHandler) HandleImports() *AstHandler {
 }
 
 func (a *AstHandler) HandleElements() *AstHandler {
-	a.handleConsts()
-	a.handleVars()
+	a.handleConstArea()
+	a.handleVarArea()
 	a.handleFunctions()
 	a.handleStructs()
 	return a
 }
 
-func (a *AstHandler) handleConsts() {
+func (a *AstHandler) handleConstArea() {
 	log.Printf("[%s] 解析常量区块\n", a.file.Name)
 	for _, decl := range a.af.Decls {
 		switch decl := decl.(type) {
@@ -211,6 +216,8 @@ type PkgType struct {
 	TypeName  string
 }
 
+// findPackage 返回一个声明的类型的包地址和类型名
+// 如果是泛型，则第一个为类型的，其他元素则为泛型声明的
 func (a *AstHandler) findPackage(expr ast.Expr) []*PkgType {
 	result := make([]*PkgType, 0)
 	switch spec := expr.(type) {
@@ -554,6 +561,7 @@ func (a *AstHandler) parseReceiver(fieldList *ast.FieldList, s *Element) *Elemen
 		Elements: make(map[ElementType][]*Element),
 	}
 	receiver := fieldList.List[0]
+
 	name := fieldList.List[0].Names[0].Name
 	result.Name = name
 	result.ItemType = ElementStruct
@@ -570,17 +578,17 @@ func (a *AstHandler) parseReceiver(fieldList *ast.FieldList, s *Element) *Elemen
 			if spec.Name == s.Name {
 				result.TypeString = result.Item.Name
 			}
-			//TODO: 格式化输出泛型的表示形式
 		case *ast.IndexExpr: //[T]
 			if spec.X.(*ast.Ident).Name == s.Name {
 				result.TypeString = result.Item.Name
 			}
-		case *ast.IndexListExpr: //[T,E]
+		case *ast.IndexListExpr: //[T,E,A]
 			if spec.X.(*ast.Ident).Name == s.Name {
 				result.TypeString = result.Item.Name
 			}
 		}
 	}
+	//TODO: receiver 的类型如果和s不同，则不能正常返回
 	return result
 }
 
@@ -594,6 +602,7 @@ func (a *AstHandler) parseMethods(s *Element) []*Element {
 				continue
 			}
 			recv := a.parseReceiver(decl.Recv, s)
+			//TODO: 此处的当前结构的方法的判断应该由 parseReceiver 处理
 			if recv.Item != nil && recv.Item.Name == s.Name {
 				log.Printf("      解析方法: %s \n", decl.Name.Name)
 				method := &Element{
@@ -617,7 +626,7 @@ func (a *AstHandler) parseMethods(s *Element) []*Element {
 	return methods
 }
 
-func (a *AstHandler) handleVars() {
+func (a *AstHandler) handleVarArea() {
 	log.Printf("[%s] 解析变量区块\n", a.file.Name)
 	a.file.Vars = make([]*Element, 0)
 	for _, decl := range a.af.Decls {
