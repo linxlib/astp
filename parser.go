@@ -316,6 +316,8 @@ func (p *Parser) handleStructThisPackage(file *File) {
 					continue
 				}
 				param.Item = tmp.Clone()
+				param.Docs = tmp.Docs
+				param.Comment = tmp.Comment
 				param.PackagePath = tmp.PackagePath
 				param.ItemType = tmp.ElementType
 
