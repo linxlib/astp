@@ -25,8 +25,22 @@ type Parser struct {
 	// 但由于一般第三方包的源码引用繁多，可能比较麻烦
 	sdkPath string //go sdk的源码根目录 eg. C:\Users\<UserName>\sdk\go1.21.0\src\builtin
 	modPath string //本地mod的目录  eg. C:\Users\<UserName>\go\pkg\mod
+
+	parseFunctions bool
+	ignorePkgs     map[string]bool
 }
 
+func (p *Parser) SetParseFunctions(b bool) *Parser {
+	p.parseFunctions = b
+	return p
+}
+func (p *Parser) AddIgnorePkg(pkg string) *Parser {
+	p.ignorePkgs[pkg] = true
+	return p
+}
+func (p *Parser) IgnorePkg(pkg string) bool {
+	return p.ignorePkgs[pkg]
+}
 func NewParser() (p *Parser) {
 	p = new(Parser)
 	log.SetOutput(os.Stdout)
@@ -48,7 +62,7 @@ func NewParser() (p *Parser) {
 	p.modDir, _ = os.Getwd()
 	p.modPath = filepath.Join(os.Getenv("GOPATH"), "pkg", "mod")
 	p.sdkPath = filepath.Join(os.Getenv("GOROOT"), "src")
-
+	p.ignorePkgs = make(map[string]bool)
 	p.Files = make(map[string]*File)
 	return p
 }
@@ -154,8 +168,12 @@ func (p *Parser) parseDir(dir string) map[string]*File {
 	fs, _ := os.ReadDir(dir)
 	for _, f := range fs {
 		if !f.IsDir() && p.isGoFile(f.Name()) {
+
 			f, key := p.parseFile(filepath.Join(dir, f.Name()))
-			files[key] = f
+			if key != "" {
+				files[key] = f
+			}
+
 		}
 	}
 	return files
@@ -164,6 +182,10 @@ func (p *Parser) parseDir(dir string) map[string]*File {
 // parseFile 解析一个go文件
 func (p *Parser) parseFile(file string) (*File, string) {
 	log.Println("parse:" + file)
+	if p.IgnorePkg(p.getPackage(file)) {
+		log.Println("ignore:" + file)
+		return nil, ""
+	}
 	name := filepath.Base(file)
 	node, err := parser.ParseFile(token.NewFileSet(), file, nil, parser.ParseComments)
 	if err != nil {
@@ -175,6 +197,7 @@ func (p *Parser) parseFile(file string) (*File, string) {
 		FilePath:    internal.Abs(file),
 	}
 	h := NewAstHandler(f, p.modPkg, node, p.findFileByPackageAndType)
+	h.parseFunctions = p.parseFunctions
 	h.HandlePackages()
 	h.HandleImports()
 	h.HandleElements()

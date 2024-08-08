@@ -29,7 +29,8 @@ type AstHandler struct {
 	// 用于在项目的另外一个包中查找一个类型
 	findHandler FindHandler
 	// 项目的mod名
-	modPkg string
+	modPkg         string
+	parseFunctions bool
 }
 
 // Result 返回 File 对象
@@ -83,12 +84,21 @@ func (a *AstHandler) HandleImports() *AstHandler {
 func (a *AstHandler) HandleElements() *AstHandler {
 	a.handleConstArea()
 	a.handleVarArea()
-	a.handleFunctions()
+	if a.parseFunctions {
+		a.handleFunctions()
+	}
 	a.handleStructs()
 	return a
 }
 
 func (a *AstHandler) handleConstArea() {
+	// 枚举写法说明：
+	// 1. 在一个const区域内有多个常量，1个的时候不符合，即必须为 const () 的声明方式
+	// 2. 区域内第一个常量的类型被指定了，并且不是内置类型。 其他常量若未指定类型，则需要第一个常量采用了iota（一般这个枚举类型为 int，如果是string，则每个常量都需指定类型）
+	// 3. 被指定的类型需要在当前包下（不能分开不同包，即 *ast.Ident）
+
+	// 当判定为枚举时， ElementType 被置为 types.ElementEnum
+
 	log.Printf("[%s] 解析常量区块\n", a.file.Name)
 	for _, decl := range a.af.Decls {
 		switch decl := decl.(type) {
@@ -98,9 +108,11 @@ func (a *AstHandler) handleConstArea() {
 				var constAreaType string
 				// 当前值
 				var curValue int
-				//var mustBeEnum bool = false
-
+				// 是否有iota
+				var hasIota bool
+				// 这里一个表示一个const区域
 				for _, spec := range decl.Specs {
+
 					switch spec := spec.(type) {
 					case *ast.ValueSpec:
 						for i, v := range spec.Names {
@@ -114,72 +126,30 @@ func (a *AstHandler) handleConstArea() {
 								Docs:        internal.GetDocs(spec.Doc),
 								Comment:     internal.GetComment(spec.Comment),
 							}
-
-							// 枚举写法说明：
-							// 1. 在一个const区域内有多个常量，1个的时候不符合，即必须为 const () 的声明方式
-							// 2. 区域内第一个常量的类型被指定了，并且不是内置类型。 其他常量若未指定类型，则需要第一个常量采用了iota（一般这个枚举类型为 int，如果是string，则每个常量都需指定类型）
-							// 3. 被指定的类型需要在当前包下（不能分开不同包，即 *ast.Ident）
-
-							// 当判定为枚举时， ElementType 被置为 types.ElementEnum
-
-							isEnum := true
-							if len(spec.Values) != len(spec.Names) {
-								if spec.Type == nil {
-									isEnum = !(constAreaType == "")
-									if isEnum {
-										curValue++
-										vv.Value = curValue
-									}
-								} else {
-									//多重赋值 不作为枚举的写法
-									isEnum = false
-								}
-
-							} else {
-								if spec.Type == nil {
-									isEnum = false
-									isEnum = !(constAreaType == "")
-									if isEnum {
-										curValue++
-										vv.Value = curValue
-									}
-
-								} else {
-									isEnum = true
-									if a, ok := spec.Type.(*ast.Ident); ok {
-										isEnum = true
-										vv.TypeString = a.Name
-										vv.ElementString = a.Name
-
-										constAreaType = a.Name
-									} else {
-										isEnum = false
-										vv.TypeString = "ignore"
-										vv.ElementString = "ignore"
-									}
-
-								}
-							}
-							if isEnum {
-								vv.ElementType = ElementEnum
-								vv.TypeString = constAreaType
-							}
-
-							if spec.Values != nil && len(spec.Values) > 0 {
-								switch vvv := spec.Values[i].(type) {
-								case *ast.Ident:
-									if isEnum {
+							isEnum := false
+							// 标记了类型，则有可能是枚举
+							if spec.Type != nil {
+								isEnum = true
+								// 再看是否有iota
+								if spec.Values != nil && len(spec.Values) > 0 {
+									switch vvv := spec.Values[i].(type) {
+									case *ast.Ident:
 										if vvv.Name == "iota" {
 											vv.Value = 0
 											curValue = 0
+											hasIota = true
+											isEnum = true
 										}
-									}
 
-								case *ast.BasicLit:
-									vv.Value = vvv.Value
-								case *ast.BinaryExpr:
-									if isEnum {
+									case *ast.BasicLit:
+										vv.Value = vvv.Value
+										hasIota = false // 直接赋值
+										isEnum = true
+										vv.ElementType = ElementEnum
+									case *ast.BinaryExpr:
 										if vvv.X.(*ast.Ident).Name == "iota" {
+											hasIota = true
+											isEnum = true
 											curValue = 0
 											switch vvv.Y.(*ast.BasicLit).Kind {
 											case token.INT:
@@ -194,11 +164,33 @@ func (a *AstHandler) handleConstArea() {
 												panic("unhandled default case")
 											}
 											vv.Value = curValue
-
 										}
+
 									}
+								}
+
+								if a, ok := spec.Type.(*ast.Ident); ok {
+									vv.TypeString = a.Name
+									vv.ElementString = a.Name
+									constAreaType = a.Name
+									isEnum = true
+								} else {
+									isEnum = false
+									vv.TypeString = "ignore"
+									vv.ElementString = "ignore"
+								}
+							} else {
+								if hasIota || constAreaType != "" {
+									isEnum = true
+									vv.TypeString = constAreaType
+									curValue++
+									vv.Value = curValue
 
 								}
+							}
+
+							if isEnum {
+								vv.ElementType = ElementEnum
 							}
 
 							a.file.Consts = append(a.file.Consts, vv)
@@ -552,6 +544,16 @@ func (a *AstHandler) parseFields(fields []*ast.Field, tParams []*Element) []*Ele
 
 func (a *AstHandler) parseReceiver(fieldList *ast.FieldList, s *Element) *Element {
 
+	receiver := fieldList.List[0]
+	ps := a.findPackage(receiver.Type)
+	typeString := ""
+	if len(ps) > 0 {
+		typeString = ps[0].TypeName
+	}
+	if typeString != s.Name {
+		return nil
+	}
+
 	result := &Element{
 		PackagePath: a.file.PackagePath,
 		PackageName: a.file.PackageName,
@@ -560,35 +562,11 @@ func (a *AstHandler) parseReceiver(fieldList *ast.FieldList, s *Element) *Elemen
 
 		Elements: make(map[ElementType][]*Element),
 	}
-	receiver := fieldList.List[0]
-
 	name := fieldList.List[0].Names[0].Name
 	result.Name = name
 	result.ItemType = ElementStruct
 	result.Item = s.Clone()
-	switch decl := receiver.Type.(type) {
-	case *ast.Ident:
-		if decl.Name == s.Name {
-			result.TypeString = result.Item.Name
-		}
 
-	case *ast.StarExpr:
-		switch spec := decl.X.(type) {
-		case *ast.Ident:
-			if spec.Name == s.Name {
-				result.TypeString = result.Item.Name
-			}
-		case *ast.IndexExpr: //[T]
-			if spec.X.(*ast.Ident).Name == s.Name {
-				result.TypeString = result.Item.Name
-			}
-		case *ast.IndexListExpr: //[T,E,A]
-			if spec.X.(*ast.Ident).Name == s.Name {
-				result.TypeString = result.Item.Name
-			}
-		}
-	}
-	//TODO: receiver 的类型如果和s不同，则不能正常返回
 	return result
 }
 
@@ -603,7 +581,7 @@ func (a *AstHandler) parseMethods(s *Element) []*Element {
 			}
 			recv := a.parseReceiver(decl.Recv, s)
 			//TODO: 此处的当前结构的方法的判断应该由 parseReceiver 处理
-			if recv.Item != nil && recv.Item.Name == s.Name {
+			if recv != nil && recv.Item != nil && recv.Item.Name == s.Name {
 				log.Printf("      解析方法: %s \n", decl.Name.Name)
 				method := &Element{
 					Index:       idx,
