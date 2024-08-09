@@ -483,6 +483,8 @@ func (a *AstHandler) parseFields(fields []*ast.Field, tParams []*Element) []*Ele
 				}
 
 			} else {
+				af1.TypeString = p.TypeName
+
 				if p.IsGeneric {
 					if af1.Elements == nil {
 						af1.Elements = make(map[ElementType][]*Element)
@@ -490,19 +492,13 @@ func (a *AstHandler) parseFields(fields []*ast.Field, tParams []*Element) []*Ele
 					tmp2 := CheckPackage(a.modPkg, p.PkgPath)
 					if tmp2 == PackageOther || tmp2 == PackageThird {
 						tmp1 := a.findHandler(p.PkgPath, p.TypeName)
-						af1.Elements[ElementGeneric] = append(af1.Elements[ElementGeneric], &Element{
-							Name:          tmp1.Name,
-							ElementType:   ElementGeneric,
-							Index:         idx1,
-							TypeString:    tmp1.TypeString,
-							ElementString: tmp1.ElementString,
-							PackagePath:   p.PkgPath,
-							PackageName:   tmp1.PackageName,
-							Docs:          tmp1.Docs,
-							Comment:       tmp1.Comment,
-							FromParent:    true,
-						})
+						genericType := tmp1.Clone(idx1)
+						genericType.ElementType = ElementGeneric
+						genericType.PackagePath = p.PkgPath
+						genericType.FromParent = true
+						af1.Elements[ElementGeneric] = append(af1.Elements[ElementGeneric], genericType)
 					} else {
+
 						af1.Elements[ElementGeneric] = append(af1.Elements[ElementGeneric], &Element{
 							Name:          p.TypeName,
 							ElementType:   ElementGeneric,
@@ -535,6 +531,7 @@ func (a *AstHandler) parseFields(fields []*ast.Field, tParams []*Element) []*Ele
 
 		if field.Tag != nil {
 			af1.Tag = reflect.StructTag(field.Tag.Value)
+			af1.TagString = field.Tag.Value
 		}
 
 		sf = append(sf, af1)
@@ -566,7 +563,7 @@ func (a *AstHandler) parseReceiver(fieldList *ast.FieldList, s *Element) *Elemen
 	result.Name = name
 	result.ItemType = ElementStruct
 	result.Item = s.Clone()
-
+	result.TypeString = typeString
 	return result
 }
 
@@ -766,6 +763,9 @@ func (a *AstHandler) handleStructs() {
 							{
 								log.Printf("  解析结构体字段: %s\n", e.Name)
 								e.Elements[ElementField] = a.parseFields(spec1.Fields.List, e.Elements[ElementGeneric])
+								for _, field := range e.Elements[ElementField] {
+									e.Elements[ElementGeneric] = append(e.Elements[ElementGeneric], field.Elements[ElementGeneric]...)
+								}
 								log.Printf("  解析结构体方法:%s\n", e.Name)
 								methods := a.parseMethods(e)
 								e.Elements[ElementMethod] = append(e.Elements[ElementMethod], methods...)
