@@ -86,6 +86,7 @@ type Element struct {
 	ItemType      ElementType `json:",omitempty"` //Item的元素类型
 	Item          *Element    `json:",omitempty"`
 	Index         int
+	TagString     string                     `json:",omitempty"`
 	Tag           reflect.StructTag          `json:"-"`
 	TypeString    string                     `json:",omitempty"` //字段类型名
 	ElementString string                     `json:",omitempty"`
@@ -309,6 +310,7 @@ func (b *Element) Clone(i ...int) *Element {
 		TypeString:  b.TypeString,
 		Docs:        b.Docs,
 		Comment:     b.Comment,
+		TagString:   b.TagString,
 		Value:       b.Value,
 		Elements:    nil,
 	}
@@ -357,4 +359,8 @@ func (b *Element) MustGetElement(elementType ElementType) *Element {
 		return element
 	}
 	return nil
+}
+
+func (b *Element) GetTag() reflect.StructTag {
+	return reflect.StructTag(strings.Trim(b.TagString, "`"))
 }

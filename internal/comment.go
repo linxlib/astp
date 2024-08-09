@@ -12,8 +12,12 @@ func trimComment(line string) string {
 func GetComment(cg *ast.CommentGroup) string {
 	var result string
 	if cg != nil && cg.List != nil {
-		for _, comment := range cg.List {
-			result += trimComment(comment.Text) + " "
+		for i, comment := range cg.List {
+			if i > 0 {
+				result += trimComment(comment.Text) + " "
+			}
+			result += trimComment(comment.Text)
+
 		}
 	}
 	return result

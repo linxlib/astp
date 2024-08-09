@@ -3,6 +3,7 @@ package astp
 import (
 	"bufio"
 	"bytes"
+	"fmt"
 	"github.com/linxlib/astp/internal"
 	"github.com/linxlib/astp/internal/json"
 	"github.com/linxlib/astp/internal/yaml"
@@ -11,6 +12,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 )
@@ -305,8 +307,15 @@ func (p *Parser) handleThisPackage() {
 		p.handleVarThisPackage(file)
 		p.handleFunctionThisPackage(file)
 		p.handleStructThisPackage(file)
+
+	}
+	for _, file := range p.Files {
 		p.handleActual(file)
 	}
+	for _, file := range p.Files {
+		p.handleActual2(file)
+	}
+
 }
 func (p *Parser) handleStructThisPackage(file *File) {
 
@@ -323,10 +332,17 @@ func (p *Parser) handleStructThisPackage(file *File) {
 			if tmp == nil {
 				continue
 			}
+			//TODO: 这个字段对应的结构有可能还未处理过
+			filesa := p.filterFilesByPackage(field.PackagePath)
+			for _, f := range filesa {
+				p.handleStructThisPackage(f)
+			}
 			field.Item = tmp.Clone()
 			field.PackagePath = tmp.PackagePath
 			field.ItemType = tmp.ElementType
+
 		}
+
 		log.Printf("  处理结构体方法: %s \n", element.Name)
 		for _, method := range element.Elements[ElementMethod] {
 			log.Printf("    处理方法参数: %s \n", method.Name)
@@ -444,7 +460,34 @@ func (p *Parser) handleVarThisPackage(file *File) {
 
 	}
 }
+func (p *Parser) handleActual2(file *File) {
+	log.Println("处理已更新的结构，更新其引用")
 
+	for _, eleStruct := range file.Structs {
+		if !eleStruct.FromParent {
+			continue
+		}
+		log.Printf("  处理结构体: %s \n", eleStruct.Name)
+		for _, eleMethod := range eleStruct.Elements[ElementMethod] {
+			for _, param := range eleMethod.Elements[ElementParam] {
+				tmp := p.findFileByPackageAndType(param.PackagePath, param.TypeString)
+				if tmp != nil {
+					param.Item = tmp.Clone()
+				}
+
+			}
+			for _, param := range eleMethod.Elements[ElementResult] {
+				tmp := p.findFileByPackageAndType(param.PackagePath, param.TypeString)
+				if tmp != nil {
+					param.Item = tmp.Clone()
+				}
+
+			}
+
+		}
+
+	}
+}
 func (p *Parser) handleActual(file *File) {
 	log.Println("处理泛型的实际映射类型，合并继承")
 
@@ -456,11 +499,16 @@ func (p *Parser) handleActual(file *File) {
 			continue
 		}
 		log.Printf("  处理结构体: %s \n", eleStruct.Name)
-		for _, eleField := range eleStruct.Elements[ElementField] {
+		needDel := -1
+		for idx, eleField := range eleStruct.Elements[ElementField] {
 			if !eleField.FromParent || eleField.Name != "" {
 				continue
 			}
+			needDel = idx
+			// 处理需要继承的字段时，将该字段从当前结构中删除
+			// 然后已经继承过来的字段，由于Name不是空，下次执行handleActual时不会进入此循环
 			log.Printf("    处理字段 %s \n", eleField.TypeString)
+
 			//继承父级时，将当前结构中声明的实际类型拉取出来
 			typeParams := eleField.Elements[ElementGeneric]
 			log.Printf("      字段声明了 %d 个泛型参数 \n", len(typeParams))
@@ -477,6 +525,8 @@ func (p *Parser) handleActual(file *File) {
 			if eleField.Item == nil {
 				continue
 			}
+			// TODO: 继承父级时需要将父级的导出字段也拉出来, 需要先去父级的那个Struct里先处理好
+
 			eleFieldType := eleField.Item
 			log.Printf("    处理结构 %s 的字段继承\n", eleStruct.Name)
 			for _, eleFieldTypeField := range eleFieldType.Elements[ElementField] {
@@ -486,18 +536,18 @@ func (p *Parser) handleActual(file *File) {
 				if eleFieldTypeField == nil {
 					continue
 				}
-				newEle := eleFieldTypeField.Clone()
+				newField := eleFieldTypeField.Clone()
 
 				for _, e3 := range typeParams {
 					// 根据泛型的索引位置来确定实际类型
-					if newEle.Item.Name != e3.Name {
+					if newField.Item.Name != e3.Name {
 						continue
 					}
-					newEle.Item = e3.Clone()
-					newEle.ItemType = e3.ElementType
+					newField.Item = e3.Clone()
+					newField.ItemType = e3.ElementType
 				}
-
-				eleStruct.Elements[ElementField] = append(eleStruct.Elements[ElementField], newEle)
+				newField.FromParent = true
+				eleStruct.Elements[ElementField] = append(eleStruct.Elements[ElementField], newField)
 
 			}
 
@@ -506,8 +556,8 @@ func (p *Parser) handleActual(file *File) {
 				if e2.Private() {
 					continue
 				}
-				newEle := e2.Clone()
-				for _, e3 := range newEle.Elements[ElementParam] {
+				newMethodFromParent := e2.Clone()
+				for _, e3 := range newMethodFromParent.Elements[ElementParam] {
 					if !e3.Generic() {
 						continue
 					}
@@ -521,7 +571,7 @@ func (p *Parser) handleActual(file *File) {
 					}
 				}
 
-				for _, e3 := range newEle.Elements[ElementResult] {
+				for _, e3 := range newMethodFromParent.Elements[ElementResult] {
 					if !e3.Generic() {
 						continue
 					}
@@ -535,11 +585,19 @@ func (p *Parser) handleActual(file *File) {
 					}
 
 				}
+				newMethodFromParent.FromParent = true
+				receiver := newMethodFromParent.MustGetElement(ElementReceiver)
+				receiver.TypeString = eleStruct.Name
 
-				eleStruct.Elements[ElementMethod] = append(eleStruct.Elements[ElementMethod], newEle)
+				eleStruct.Elements[ElementMethod] = append(eleStruct.Elements[ElementMethod], newMethodFromParent)
 
 			}
 
+		}
+		if needDel != -1 {
+			fmt.Println("pre count:", len(eleStruct.Elements[ElementField]))
+			eleStruct.Elements[ElementField] = slices.Delete(eleStruct.Elements[ElementField], needDel, needDel+1)
+			fmt.Println("after count:", len(eleStruct.Elements[ElementField]))
 		}
 
 	}
