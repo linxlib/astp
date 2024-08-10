@@ -78,23 +78,22 @@ func CheckPackage(modPkg string, pkg string) string {
 }
 
 type Element struct {
-	Name        string      `json:",omitempty"`
-	PackagePath string      `json:",omitempty"` //包路径
-	PackageName string      `json:",omitempty"` //包名
-	ElementType ElementType `json:",omitempty"` //当前元素类型
+	Name        string      `json:",omitempty" yaml:",omitempty"`
+	PackagePath string      `json:",omitempty" yaml:",omitempty"` //包路径
+	PackageName string      `json:",omitempty" yaml:",omitempty"` //包名
+	ElementType ElementType `json:",omitempty" yaml:",omitempty"` //当前元素类型
 
-	ItemType      ElementType `json:",omitempty"` //Item的元素类型
-	Item          *Element    `json:",omitempty"`
+	ItemType      ElementType `json:",omitempty" yaml:",omitempty"` //Item的元素类型
+	Item          *Element    `json:",omitempty" yaml:",omitempty"`
 	Index         int
-	TagString     string                     `json:",omitempty"`
-	Tag           reflect.StructTag          `json:"-"`
-	TypeString    string                     `json:",omitempty"` //字段类型名
-	ElementString string                     `json:",omitempty"`
-	Docs          []string                   `json:",omitempty"` //上方的文档
-	Comment       string                     `json:",omitempty"` //后方的注释
+	TagString     string                     `json:",omitempty" yaml:",omitempty"`
+	TypeString    string                     `json:",omitempty" yaml:",omitempty"` //字段类型名
+	ElementString string                     `json:",omitempty" yaml:",omitempty"`
+	Docs          []string                   `json:",omitempty" yaml:",omitempty"` //上方的文档
+	Comment       string                     `json:",omitempty" yaml:",omitempty"` //后方的注释
 	rType         reflect.Type               `json:"-"`
 	rValue        reflect.Value              `json:"-"`
-	Value         any                        `json:",omitempty"` //值 一般为枚举时用到
+	Value         any                        `json:",omitempty" yaml:",omitempty"` //值 一般为枚举时用到
 	FromParent    bool                       //表示当前元素 包含从父级继承而来的字段、方法、文档 或者 表示当前元素是继承而来
 	Elements      map[ElementType][]*Element // 子成员 比如字段 方法 泛型类型
 }
@@ -306,7 +305,6 @@ func (b *Element) Clone(i ...int) *Element {
 		ItemType:    b.ItemType,
 		Item:        b.Item.Clone(),
 		Index:       newIndex,
-		Tag:         b.Tag,
 		TypeString:  b.TypeString,
 		Docs:        b.Docs,
 		Comment:     b.Comment,

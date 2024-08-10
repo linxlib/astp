@@ -6,7 +6,6 @@ import (
 	"go/token"
 	"log"
 	"path/filepath"
-	"reflect"
 	"strconv"
 	"strings"
 )
@@ -530,7 +529,6 @@ func (a *AstHandler) parseFields(fields []*ast.Field, tParams []*Element) []*Ele
 		}
 
 		if field.Tag != nil {
-			af1.Tag = reflect.StructTag(field.Tag.Value)
 			af1.TagString = field.Tag.Value
 		}
 
