@@ -210,6 +210,9 @@ type PkgType struct {
 // findPackage 返回一个声明的类型的包地址和类型名
 // 如果是泛型，则第一个为类型的，其他元素则为泛型声明的
 func (a *AstHandler) findPackage(expr ast.Expr) []*PkgType {
+	if expr == nil {
+		return []*PkgType{}
+	}
 	result := make([]*PkgType, 0)
 	switch spec := expr.(type) {
 	case *ast.Ident: //直接一个类型
@@ -293,6 +296,14 @@ func (a *AstHandler) findPackage(expr ast.Expr) []*PkgType {
 				IsGeneric: false,
 				PkgPath:   PackageBuiltIn,
 				TypeName:  "interface{}",
+			},
+		}
+	case *ast.ChanType:
+		return []*PkgType{
+			&PkgType{
+				IsGeneric: false,
+				PkgPath:   PackageBuiltIn,
+				TypeName:  "chan",
 			},
 		}
 	default:
