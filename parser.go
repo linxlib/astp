@@ -536,6 +536,9 @@ func (p *Parser) handleActual(file *File) {
 				if eleFieldTypeField == nil {
 					continue
 				}
+				if eleFieldTypeField.Item == nil {
+					continue
+				}
 				newField := eleFieldTypeField.Clone()
 
 				for _, e3 := range typeParams {
