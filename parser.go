@@ -536,14 +536,14 @@ func (p *Parser) handleActual(file *File) {
 				if eleFieldTypeField == nil {
 					continue
 				}
-				if eleFieldTypeField.Item == nil {
-					continue
-				}
+				//if eleFieldTypeField.Item == nil {
+				//	continue
+				//}
 				newField := eleFieldTypeField.Clone()
 
 				for _, e3 := range typeParams {
 					// 根据泛型的索引位置来确定实际类型
-					if newField.Item.Name != e3.Name {
+					if newField.Item != nil && newField.Item.Name != e3.Name {
 						continue
 					}
 					newField.Item = e3.Clone()
