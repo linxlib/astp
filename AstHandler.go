@@ -908,6 +908,14 @@ func (a *AstHandler) parseBinaryExpr(expr ast.Expr) (result []string) {
 		idx := a.parseBinaryExpr(expr.Index)
 		result = append(result, idx...)
 		return result
+	case *ast.IndexListExpr:
+		xx := a.parseBinaryExpr(expr.X)
+		result = append(result, xx...)
+		for _, indic := range expr.Indices {
+			idx := a.parseBinaryExpr(indic)
+			result = append(result, idx...)
+		}
+		return result
 	default:
 		panic("unhandled expression")
 	}
