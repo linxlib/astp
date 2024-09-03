@@ -306,6 +306,14 @@ func (a *AstHandler) findPackage(expr ast.Expr) []*PkgType {
 				TypeName:  "chan",
 			},
 		}
+	case *ast.StructType:
+		return []*PkgType{
+			&PkgType{
+				IsGeneric: false,
+				PkgPath:   PackageBuiltIn,
+				TypeName:  "struct",
+			},
+		}
 	default:
 		panic("unhandled expr")
 	}
