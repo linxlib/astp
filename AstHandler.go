@@ -383,10 +383,20 @@ func (a *AstHandler) parseResults(params *ast.FieldList, tParams []*Element) []*
 			for _, p := range ps {
 				tmp := CheckPackage(a.modPkg, p.PkgPath)
 				if tmp != PackageThisPackage && tmp != PackageBuiltIn && tmp != PackageThird {
-					par.Item = a.findHandler(p.PkgPath, p.TypeName)
-					par.ItemType = par.Item.ItemType
-					par.PackagePath = par.Item.PackagePath
-					par.PackageName = par.Item.PackageName
+					if par.Item == nil {
+						par.Item = a.findHandler(p.PkgPath, p.TypeName)
+						par.ItemType = par.Item.ItemType
+						par.PackagePath = par.Item.PackagePath
+						par.PackageName = par.Item.PackageName
+						par.ElementType = par.Item.ElementType
+					} else {
+						genericType := a.findHandler(p.PkgPath, p.TypeName)
+						if par.Elements == nil {
+							par.Elements = make(map[ElementType][]*Element)
+						}
+						par.Elements[ElementGeneric] = append(par.Elements[ElementGeneric], genericType)
+					}
+
 				} else {
 					par.PackagePath = tmp
 					par.TypeString = p.TypeName

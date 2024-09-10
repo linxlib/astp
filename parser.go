@@ -315,6 +315,9 @@ func (p *Parser) handleThisPackage() {
 	for _, file := range p.Files {
 		p.handleActual2(file)
 	}
+	for _, file := range p.Files {
+		p.handleActual3(file)
+	}
 
 }
 func (p *Parser) handleStructThisPackage(file *File) {
@@ -619,4 +622,204 @@ func (p *Parser) VisitStruct(check func(element *Element) bool, f func(element *
 			f(e)
 		}
 	}
+}
+
+func (p *Parser) handleActual3(file *File) {
+	log.Println("处理方法参数和返回值中的泛型参数, 合并继承")
+
+	for _, eleStruct := range file.Structs {
+		for _, eleMethod := range eleStruct.Elements[ElementMethod] {
+			log.Println("处理方法:", eleMethod.Name)
+			// 遍历参数
+			for _, eleParam := range eleMethod.Elements[ElementParam] {
+				if !eleParam.Generic() {
+					continue
+				}
+				log.Println("处理参数:", eleParam.Name, " ", eleParam.TypeString)
+				tParams := make([]*Element, 0)
+				for _, element := range eleParam.Elements[ElementGeneric] {
+					tParams = append(tParams, element.Clone())
+				}
+				for _, element := range eleParam.Item.Elements[ElementField] {
+					if element.ItemType == ElementGeneric {
+						for _, param := range tParams {
+							if element.Item.Index == param.Index {
+								element.Name = param.Name
+								element.PackagePath = param.PackagePath
+								element.PackageName = param.PackageName
+								element.ItemType = param.ItemType
+								element.Item = param.Item.Clone()
+								element.TypeString = param.TypeString
+								element.Docs = param.Docs
+								element.Comment = param.Comment
+								element.FromParent = true
+								if element.Elements == nil {
+									element.Elements = make(map[ElementType][]*Element)
+								}
+								if param.Elements == nil {
+									param.Elements = make(map[ElementType][]*Element)
+								}
+								element.Elements[ElementField] = copySlice(param.Elements[ElementField])
+
+							}
+						}
+					}
+				}
+			}
+
+			for _, eleResult := range eleMethod.Elements[ElementResult] {
+				if !eleResult.Generic() {
+					continue
+				}
+				log.Println("处理返回值:", eleResult.Name, " ", eleResult.TypeString)
+				// 找到泛型类型中的泛型字段, 使用实际类型进行替换
+				// 先找到真实类型
+				tParams := make([]*Element, 0)
+				for _, element := range eleResult.Elements[ElementGeneric] {
+					tParams = append(tParams, element.Clone())
+				}
+
+				for _, element := range eleResult.Item.Elements[ElementField] {
+					if element.ItemType == ElementGeneric {
+						for _, param := range tParams {
+							if element.Item.Index == param.Index {
+								element.Name = param.Name
+								element.PackagePath = param.PackagePath
+								element.PackageName = param.PackageName
+								element.ItemType = param.ItemType
+								element.Item = param.Item.Clone()
+								element.TypeString = param.TypeString
+								element.Docs = param.Docs
+								element.Comment = param.Comment
+								element.FromParent = true
+								if element.Elements == nil {
+									element.Elements = make(map[ElementType][]*Element)
+								}
+								if param.Elements == nil {
+									param.Elements = make(map[ElementType][]*Element)
+								}
+								element.Elements[ElementField] = copySlice(param.Elements[ElementField])
+
+							}
+						}
+					}
+				}
+
+			}
+		}
+
+		//if !eleStruct.FromParent {
+		//	continue
+		//}
+		//log.Printf("  处理结构体: %s \n", eleStruct.Name)
+		//needDel := -1
+		//for idx, eleField := range eleStruct.Elements[ElementField] {
+		//	if !eleField.FromParent || eleField.Name != "" {
+		//		continue
+		//	}
+		//	needDel = idx
+		//	// 处理需要继承的字段时，将该字段从当前结构中删除
+		//	// 然后已经继承过来的字段，由于Name不是空，下次执行handleActual时不会进入此循环
+		//	log.Printf("    处理字段 %s \n", eleField.TypeString)
+		//
+		//	//继承父级时，将当前结构中声明的实际类型拉取出来
+		//	typeParams := eleField.Elements[ElementGeneric]
+		//	log.Printf("      字段声明了 %d 个泛型参数 \n", len(typeParams))
+		//	// 赋值它的原始类型名 比如实际类型是 int 原始是声明为 T 的
+		//	// 方便后面方法处理的时候进行匹配
+		//	for _, param := range typeParams {
+		//		for _, originTypeParam := range eleField.Item.Elements[ElementGeneric] {
+		//			if originTypeParam.Index != param.Index {
+		//				continue
+		//			}
+		//			param.Name = originTypeParam.Name
+		//		}
+		//	}
+		//	if eleField.Item == nil {
+		//		continue
+		//	}
+		//	// TODO: 继承父级时需要将父级的导出字段也拉出来, 需要先去父级的那个Struct里先处理好
+		//
+		//	eleFieldType := eleField.Item
+		//	log.Printf("    处理结构 %s 的字段继承\n", eleStruct.Name)
+		//	for _, eleFieldTypeField := range eleFieldType.Elements[ElementField] {
+		//		if eleFieldTypeField.Private() {
+		//			continue
+		//		}
+		//		if eleFieldTypeField == nil {
+		//			continue
+		//		}
+		//		//if eleFieldTypeField.Item == nil {
+		//		//	continue
+		//		//}
+		//		newField := eleFieldTypeField.Clone()
+		//
+		//		for _, e3 := range typeParams {
+		//			// 根据泛型的索引位置来确定实际类型
+		//			if newField.Item != nil && newField.Item.Name != e3.Name {
+		//				continue
+		//			}
+		//			newField.Item = e3.Clone()
+		//			newField.ItemType = e3.ElementType
+		//		}
+		//		newField.FromParent = true
+		//		eleStruct.Elements[ElementField] = append(eleStruct.Elements[ElementField], newField)
+		//
+		//	}
+		//
+		//	log.Printf("    处理结构 %s 的方法继承\n", eleStruct.Name)
+		//	for _, e2 := range eleFieldType.Elements[ElementMethod] {
+		//		if e2.Private() {
+		//			continue
+		//		}
+		//		newMethodFromParent := e2.Clone()
+		//		for _, e3 := range newMethodFromParent.Elements[ElementParam] {
+		//			if !e3.Generic() {
+		//				continue
+		//			}
+		//			for _, e4 := range typeParams {
+		//				if e3.Item.Name != e4.Name {
+		//					continue
+		//				}
+		//				e3.Item = e4.Clone()
+		//				e3.ItemType = e4.ElementType
+		//
+		//			}
+		//		}
+		//
+		//		for _, e3 := range newMethodFromParent.Elements[ElementResult] {
+		//			if !e3.Generic() {
+		//				continue
+		//			}
+		//			for _, e4 := range typeParams {
+		//				if e3.Item.Name != e4.Name {
+		//					continue
+		//				}
+		//				e3.Item = e4.Clone()
+		//				e3.ItemType = e4.ElementType
+		//
+		//			}
+		//
+		//		}
+		//		newMethodFromParent.FromParent = true
+		//		receiver := newMethodFromParent.MustGetElement(ElementReceiver)
+		//		receiver.TypeString = eleStruct.Name
+		//
+		//		eleStruct.Elements[ElementMethod] = append(eleStruct.Elements[ElementMethod], newMethodFromParent)
+		//
+		//	}
+		//
+		//}
+		//if needDel != -1 {
+		//	fmt.Println("pre count:", len(eleStruct.Elements[ElementField]))
+		//	eleStruct.Elements[ElementField] = slices.Delete(eleStruct.Elements[ElementField], needDel, needDel+1)
+		//	fmt.Println("after count:", len(eleStruct.Elements[ElementField]))
+		//}
+
+	}
+
+}
+
+func (p *Parser) handleActual4(file *File) {
+	log.Println("处理方法参数和返回值中的泛型参数, 合并继承")
 }
