@@ -692,6 +692,7 @@ func (p *Parser) handleActual3(file *File) {
 								element.Docs = param.Docs
 								element.Comment = param.Comment
 								element.FromParent = true
+								eleResult.ElementString = eleResult.TypeString + element.TypeString
 								if element.Elements == nil {
 									element.Elements = make(map[ElementType][]*Element)
 								}

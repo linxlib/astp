@@ -389,11 +389,13 @@ func (a *AstHandler) parseResults(params *ast.FieldList, tParams []*Element) []*
 						par.PackagePath = par.Item.PackagePath
 						par.PackageName = par.Item.PackageName
 						par.ElementType = par.Item.ElementType
+						par.TypeString = p.TypeName
 					} else {
 						genericType := a.findHandler(p.PkgPath, p.TypeName)
 						if par.Elements == nil {
 							par.Elements = make(map[ElementType][]*Element)
 						}
+						genericType.TypeString = p.TypeName
 						par.Elements[ElementGeneric] = append(par.Elements[ElementGeneric], genericType)
 					}
 
