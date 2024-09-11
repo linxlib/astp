@@ -514,6 +514,14 @@ func (a *AstHandler) parseFields(fields []*ast.Field, tParams []*Element) []*Ele
 
 			} else {
 				af1.TypeString = p.TypeName
+				af1.PackagePath = p.PkgPath
+				//af1.Item = a.findHandler(p.PkgPath, p.TypeName)
+				//if af1.Item != nil {
+				//	af1.ItemType = af1.Item.ElementType
+				//	af1.PackagePath = af1.Item.PackagePath
+				//	af1.TypeString = af1.Item.TypeString
+				//	af1.PackageName = af1.Item.PackageName
+				//}
 
 				if p.IsGeneric {
 					if af1.Elements == nil {
@@ -522,7 +530,7 @@ func (a *AstHandler) parseFields(fields []*ast.Field, tParams []*Element) []*Ele
 					tmp2 := CheckPackage(a.modPkg, p.PkgPath)
 					if tmp2 == PackageOther || tmp2 == PackageThird {
 						tmp1 := a.findHandler(p.PkgPath, p.TypeName)
-						genericType := tmp1.Clone(idx1)
+						genericType := tmp1
 						genericType.ElementType = ElementGeneric
 						genericType.PackagePath = p.PkgPath
 						genericType.FromParent = true
