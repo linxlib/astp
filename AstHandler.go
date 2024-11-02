@@ -1,6 +1,7 @@
 package astp
 
 import (
+	"fmt"
 	"github.com/linxlib/astp/internal"
 	"go/ast"
 	"go/token"
@@ -307,13 +308,24 @@ func (a *AstHandler) findPackage(expr ast.Expr) []*PkgType {
 			},
 		}
 	case *ast.StructType:
-		return []*PkgType{
-			&PkgType{
-				IsGeneric: false,
-				PkgPath:   PackageBuiltIn,
-				TypeName:  "struct",
-			},
+		if expr.(*ast.StructType).Fields == nil {
+			return []*PkgType{
+				&PkgType{
+					IsGeneric: false,
+					PkgPath:   PackageBuiltIn,
+					TypeName:  "struct",
+				},
+			}
+		} else {
+			return []*PkgType{
+				&PkgType{
+					IsGeneric: false,
+					PkgPath:   PackageThisPackage,
+					TypeName:  "struct",
+				},
+			}
 		}
+
 	default:
 		panic("unhandled expr")
 	}
@@ -515,6 +527,26 @@ func (a *AstHandler) parseFields(fields []*ast.Field, tParams []*Element) []*Ele
 			} else {
 				af1.TypeString = p.TypeName
 				af1.PackagePath = p.PkgPath
+				if p.TypeName == "struct" && p.PkgPath == PackageThisPackage {
+					fmt.Println("1")
+					var fieldList = field.Type.(*ast.StructType).Fields.List
+					var elems = a.parseFields(fieldList, tParams)
+					af1.ItemType = ElementStruct
+					af1.Item = &Element{
+						ElementType: ElementStruct,
+						Index:       0,
+						Elements:    make(map[ElementType][]*Element),
+						Name:        "_",
+						PackagePath: af1.PackagePath,
+						PackageName: af1.PackageName,
+						Docs:        internal.GetDocs(field.Doc),
+						Comment:     internal.GetComment(field.Comment),
+					}
+
+					af1.Item.Elements[ElementField] = make([]*Element, 0)
+					af1.Item.Elements[ElementField] = append(af1.Item.Elements[ElementField], elems...)
+				}
+
 				//af1.Item = a.findHandler(p.PkgPath, p.TypeName)
 				//if af1.Item != nil {
 				//	af1.ItemType = af1.Item.ElementType

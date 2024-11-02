@@ -14,6 +14,10 @@ type Model struct {
 	InDate    string    `json:"in_date"`    //indate
 	EditDate  string    `json:"edit_date"`  //editdate
 	DeletedAt time.Time `json:"deleted_at"` //deleted_at
+	Test      struct {
+		SomeThing string `json:"some_thing"`
+		Other     string `json:"other"`
+	} `json:"test"`
 }
 
 func TestMethod2() {
