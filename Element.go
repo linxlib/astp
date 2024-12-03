@@ -13,12 +13,13 @@ type ElementType string
 const (
 	ElementNone ElementType = "NONE"
 
-	ElementStruct    ElementType = "STRUCT"
-	ElementField     ElementType = "FIELD"
-	ElementConst     ElementType = "CONST"
-	ElementVar       ElementType = "VAR"
-	ElementFunc      ElementType = "FUNC"
-	ElementInterface ElementType = "INTERFACE"
+	ElementStruct      ElementType = "STRUCT"
+	ElementArrayStruct ElementType = "ARRAY_STRUCT"
+	ElementField       ElementType = "FIELD"
+	ElementConst       ElementType = "CONST"
+	ElementVar         ElementType = "VAR"
+	ElementFunc        ElementType = "FUNC"
+	ElementInterface   ElementType = "INTERFACE"
 
 	ElementMethod    ElementType = "METHOD"
 	ElementEnum      ElementType = "ENUM"
@@ -85,6 +86,7 @@ type Element struct {
 
 	ItemType      ElementType `json:",omitempty" yaml:",omitempty"` //Item的元素类型
 	Item          *Element    `json:",omitempty" yaml:",omitempty"`
+	IsItemSlice   bool        `json:",omitempty" yaml:",omitempty"`
 	Index         int
 	TagString     string                     `json:",omitempty" yaml:",omitempty"`
 	TypeString    string                     `json:",omitempty" yaml:",omitempty"` //字段类型名

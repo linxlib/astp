@@ -1,7 +1,6 @@
 package astp
 
 import (
-	"fmt"
 	"github.com/linxlib/astp/internal"
 	"go/ast"
 	"go/token"
@@ -204,6 +203,7 @@ func (a *AstHandler) handleConstArea() {
 
 type PkgType struct {
 	IsGeneric bool
+	IsSlice   bool
 	PkgPath   string
 	TypeName  string
 }
@@ -251,10 +251,16 @@ func (a *AstHandler) findPackage(expr ast.Expr) []*PkgType {
 		return result
 	case *ast.ArrayType: //数组
 		aa := a.findPackage(spec.Elt)
+		for _, pkgType := range aa {
+			pkgType.IsSlice = true
+		}
 		result = append(result, aa...)
 		return result
 	case *ast.Ellipsis: // ...
 		aa := a.findPackage(spec.Elt)
+		for _, pkgType := range aa {
+			pkgType.IsSlice = true
+		}
 		result = append(result, aa...)
 		return result
 	case *ast.MapType:
@@ -357,12 +363,13 @@ func (a *AstHandler) parseResults(params *ast.FieldList, tParams []*Element) []*
 					tmp := CheckPackage(a.modPkg, p.PkgPath)
 					if tmp != PackageThisPackage && tmp != PackageBuiltIn && tmp != PackageThird {
 						par.Item = a.findHandler(p.PkgPath, p.TypeName)
-						par.ItemType = par.Item.ItemType
+						par.IsItemSlice = p.IsSlice
 						par.PackagePath = par.Item.PackagePath
 						par.PackageName = par.Item.PackageName
 						par.TypeString = par.Item.TypeString
 					} else {
 						par.PackagePath = tmp
+						par.IsItemSlice = p.IsSlice
 						par.TypeString = p.TypeName
 						// tParams
 						for _, tParam := range tParams {
@@ -397,7 +404,8 @@ func (a *AstHandler) parseResults(params *ast.FieldList, tParams []*Element) []*
 				if tmp != PackageThisPackage && tmp != PackageBuiltIn && tmp != PackageThird {
 					if par.Item == nil {
 						par.Item = a.findHandler(p.PkgPath, p.TypeName)
-						par.ItemType = par.Item.ItemType
+						par.ItemType = par.Item.ElementType
+						par.IsItemSlice = p.IsSlice
 						par.PackagePath = par.Item.PackagePath
 						par.PackageName = par.Item.PackageName
 						par.ElementType = par.Item.ElementType
@@ -414,6 +422,7 @@ func (a *AstHandler) parseResults(params *ast.FieldList, tParams []*Element) []*
 				} else {
 					par.PackagePath = tmp
 					par.TypeString = p.TypeName
+					par.IsItemSlice = p.IsSlice
 					// tParams
 					for _, tParam := range tParams {
 						if tParam.Name == p.TypeName {
@@ -458,11 +467,13 @@ func (a *AstHandler) parseParams(params *ast.FieldList, tParams []*Element) []*E
 				if tmp != PackageThisPackage && tmp != PackageBuiltIn && tmp != PackageThird {
 					par.Item = a.findHandler(p.PkgPath, p.TypeName)
 					par.ItemType = par.Item.ItemType
+					par.IsItemSlice = p.IsSlice
 					par.PackagePath = par.Item.PackagePath
 					par.PackageName = par.Item.PackageName
 				} else {
 					par.PackagePath = tmp
 					par.TypeString = p.TypeName
+					par.IsItemSlice = p.IsSlice
 					// tParams
 					for _, tParam := range tParams {
 						if tParam.Name == p.TypeName {
@@ -504,6 +515,7 @@ func (a *AstHandler) parseFields(fields []*ast.Field, tParams []*Element) []*Ele
 
 				af1.Item = a.findHandler(p.PkgPath, p.TypeName)
 				af1.ItemType = af1.Item.ElementType
+				af1.IsItemSlice = p.IsSlice
 				af1.PackagePath = af1.Item.PackagePath
 				af1.TypeString = af1.Item.TypeString
 				af1.PackageName = af1.Item.PackageName
@@ -527,8 +539,9 @@ func (a *AstHandler) parseFields(fields []*ast.Field, tParams []*Element) []*Ele
 			} else {
 				af1.TypeString = p.TypeName
 				af1.PackagePath = p.PkgPath
+				af1.IsItemSlice = p.IsSlice
 				if p.TypeName == "struct" && p.PkgPath == PackageThisPackage {
-					fmt.Println("1")
+					//fmt.Println("1")
 					var fieldList = field.Type.(*ast.StructType).Fields.List
 					var elems = a.parseFields(fieldList, tParams)
 					af1.ItemType = ElementStruct
