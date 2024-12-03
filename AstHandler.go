@@ -141,7 +141,7 @@ func (a *AstHandler) handleConstArea() {
 										}
 
 									case *ast.BasicLit:
-										vv.Value = vvv.Value
+										vv.Value = strings.Trim(vvv.Value, `"`)
 										hasIota = false // 直接赋值
 										isEnum = true
 										vv.ElementType = ElementEnum
