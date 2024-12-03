@@ -540,6 +540,9 @@ func (a *AstHandler) parseFields(fields []*ast.Field, tParams []*Element) []*Ele
 				af1.TypeString = p.TypeName
 				af1.PackagePath = p.PkgPath
 				af1.IsItemSlice = p.IsSlice
+				if af1.IsItemSlice {
+					af1.TypeString = "[]" + af1.TypeString
+				}
 				if p.TypeName == "struct" && p.PkgPath == PackageThisPackage {
 					//fmt.Println("1")
 					var fieldList = field.Type.(*ast.StructType).Fields.List
