@@ -468,6 +468,7 @@ func (a *AstHandler) parseParams(params *ast.FieldList, tParams []*Element) []*E
 					par.Item = a.findHandler(p.PkgPath, p.TypeName)
 					par.ItemType = par.Item.ItemType
 					par.IsItemSlice = p.IsSlice
+
 					par.PackagePath = par.Item.PackagePath
 					par.PackageName = par.Item.PackageName
 				} else {
@@ -516,8 +517,12 @@ func (a *AstHandler) parseFields(fields []*ast.Field, tParams []*Element) []*Ele
 				af1.Item = a.findHandler(p.PkgPath, p.TypeName)
 				af1.ItemType = af1.Item.ElementType
 				af1.IsItemSlice = p.IsSlice
+				if af1.IsItemSlice {
+					af1.ElementString = af1.Item.TypeString
+					af1.TypeString = "[]" + af1.TypeString
+				}
 				af1.PackagePath = af1.Item.PackagePath
-				af1.TypeString = af1.Item.TypeString
+				//af1.TypeString = af1.Item.TypeString
 				af1.PackageName = af1.Item.PackageName
 
 				if p.IsGeneric {
@@ -541,6 +546,7 @@ func (a *AstHandler) parseFields(fields []*ast.Field, tParams []*Element) []*Ele
 				af1.PackagePath = p.PkgPath
 				af1.IsItemSlice = p.IsSlice
 				if af1.IsItemSlice {
+					af1.ElementString = af1.TypeString
 					af1.TypeString = "[]" + af1.TypeString
 				}
 				if p.TypeName == "struct" && p.PkgPath == PackageThisPackage {

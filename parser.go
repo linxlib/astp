@@ -30,6 +30,8 @@ type Parser struct {
 
 	parseFunctions bool
 	ignorePkgs     map[string]bool
+
+	filtered map[string]*Element
 }
 
 func (p *Parser) SetParseFunctions(b bool) *Parser {
@@ -127,6 +129,7 @@ func (p *Parser) Parse(fa ...string) {
 			}
 		}
 	}
+	p.filtered = make(map[string]*Element)
 	p.handleThisPackage()
 
 	// 当某个元素被标记为this时，表示需要当文件所在包中的所有类型都解析完毕之后，再去处理这部分元素的实际类型
@@ -331,17 +334,28 @@ func (p *Parser) handleStructThisPackage(file *File) {
 			if field.PackagePath != PackageThisPackage {
 				continue
 			}
-			tmp := p.filterElementByName(files, field.TypeString)
-			if tmp == nil {
-				continue
+			findTypeName := field.TypeString
+			if field.IsItemSlice || strings.HasPrefix(field.TypeString, "[]") {
+				findTypeName = strings.TrimPrefix(field.TypeString, "[]")
 			}
+			var tmp *Element
+			if tmp1, ok := p.filtered[findTypeName]; ok {
+				tmp = tmp1
+			} else {
+				tmp = p.filterElementByName(files, findTypeName)
+				if tmp == nil {
+					continue
+				}
+				p.filtered[findTypeName] = tmp
+			}
+
 			//TODO: 这个字段对应的结构有可能还未处理过
 			filesa := p.filterFilesByPackage(field.PackagePath)
 			for _, f := range filesa {
 				p.handleStructThisPackage(f)
 			}
 
-			field.Item = tmp
+			field.Item = tmp.Clone()
 			field.ElementType = tmp.ElementType
 			field.PackagePath = tmp.PackagePath
 			field.ItemType = tmp.ElementType
@@ -355,30 +369,108 @@ func (p *Parser) handleStructThisPackage(file *File) {
 				if param.PackagePath != PackageThisPackage {
 					continue
 				}
-				tmp := p.filterElementByName(files, param.TypeString)
-				if tmp == nil {
-					continue
+				findTypeName := param.TypeString
+				if param.IsItemSlice || strings.HasPrefix(param.TypeString, "[]") {
+					findTypeName = strings.TrimPrefix(param.TypeString, "[]")
 				}
-				param.Item = tmp
+				var tmp *Element
+				if tmp1, ok := p.filtered[findTypeName]; ok {
+					tmp = tmp1
+				} else {
+					tmp = p.filterElementByName(files, findTypeName)
+					if tmp == nil {
+						continue
+					}
+					p.filtered[findTypeName] = tmp
+				}
+				param.Item = tmp.Clone()
 				param.Docs = tmp.Docs
 				param.Comment = tmp.Comment
 				param.PackagePath = tmp.PackagePath
 				param.ItemType = tmp.ElementType
-
 			}
+			for _, param := range method.Elements[ElementParam] {
+				if param.Item == nil {
+					continue
+				}
+				for _, field := range param.Item.Elements[ElementField] {
+					if field.PackagePath != PackageThisPackage {
+						continue
+					}
+					findTypeName := field.TypeString
+					if field.IsItemSlice || strings.HasPrefix(field.TypeString, "[]") {
+						findTypeName = strings.TrimPrefix(field.TypeString, "[]")
+					}
+					var tmp *Element
+					if tmp1, ok := p.filtered[findTypeName]; ok {
+						tmp = tmp1
+					} else {
+						tmp = p.filterElementByName(files, findTypeName)
+						if tmp == nil {
+							continue
+						}
+						p.filtered[findTypeName] = tmp
+					}
+					field.Item = tmp.Clone()
+					field.Docs = tmp.Docs
+					field.Comment = tmp.Comment
+					field.PackagePath = tmp.PackagePath
+					field.ItemType = tmp.ElementType
+				}
+			}
+
 			log.Printf("    处理方法返回值: %s \n", method.Name)
 			for _, param := range method.Elements[ElementResult] {
 				if param.PackagePath != PackageThisPackage {
 					continue
 				}
-				tmp := p.filterElementByName(files, param.TypeString)
-				if tmp == nil {
-					continue
+				findTypeName := param.TypeString
+				if param.IsItemSlice || strings.HasPrefix(param.TypeString, "[]") {
+					findTypeName = strings.TrimPrefix(param.TypeString, "[]")
 				}
-				param.Item = tmp
+				var tmp *Element
+				if tmp1, ok := p.filtered[findTypeName]; ok {
+					tmp = tmp1
+				} else {
+					tmp = p.filterElementByName(files, findTypeName)
+					if tmp == nil {
+						continue
+					}
+					p.filtered[findTypeName] = tmp
+				}
+				param.Item = tmp.Clone()
 				param.PackagePath = tmp.PackagePath
 				param.ItemType = tmp.ElementType
 
+			}
+			for _, param := range method.Elements[ElementResult] {
+				if param.Item == nil {
+					continue
+				}
+				for _, field := range param.Item.Elements[ElementField] {
+					if field.PackagePath != PackageThisPackage {
+						continue
+					}
+					findTypeName := field.TypeString
+					if field.IsItemSlice || strings.HasPrefix(field.TypeString, "[]") {
+						findTypeName = strings.TrimPrefix(field.TypeString, "[]")
+					}
+					var tmp *Element
+					if tmp1, ok := p.filtered[findTypeName]; ok {
+						tmp = tmp1
+					} else {
+						tmp = p.filterElementByName(files, findTypeName)
+						if tmp == nil {
+							continue
+						}
+						p.filtered[findTypeName] = tmp
+					}
+					field.Item = tmp.Clone()
+					field.Docs = tmp.Docs
+					field.Comment = tmp.Comment
+					field.PackagePath = tmp.PackagePath
+					field.ItemType = tmp.ElementType
+				}
 			}
 
 		}
