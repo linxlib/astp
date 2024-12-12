@@ -333,7 +333,7 @@ func (a *AstHandler) findPackage(expr ast.Expr) []*PkgType {
 		}
 
 	default:
-		panic("unhandled expr")
+		return []*PkgType{}
 	}
 	panic("unreachable")
 }
