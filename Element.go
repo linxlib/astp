@@ -84,11 +84,11 @@ type Element struct {
 	PackageName string      `json:",omitempty" yaml:",omitempty"` //包名
 	ElementType ElementType `json:",omitempty" yaml:",omitempty"` //当前元素类型
 
-	ItemType      ElementType `json:",omitempty" yaml:",omitempty"` //Item的元素类型
-	Item          *Element    `json:",omitempty" yaml:",omitempty"`
-	IsItemSlice   bool        `json:",omitempty" yaml:",omitempty"`
-	IsEnumString  bool        `json:",omitempty" yaml:",omitempty"`
-	Index         int
+	ItemType      ElementType                `json:",omitempty" yaml:",omitempty"` //Item的元素类型
+	Item          *Element                   `json:",omitempty" yaml:",omitempty"`
+	IsItemSlice   bool                       `json:",omitempty" yaml:",omitempty"`
+	IsEnumString  bool                       `json:",omitempty" yaml:",omitempty"`
+	Index         int                        `json:",omitempty" yaml:",omitempty"`
 	TagString     string                     `json:",omitempty" yaml:",omitempty"`
 	TypeString    string                     `json:",omitempty" yaml:",omitempty"` //字段类型名
 	ElementString string                     `json:",omitempty" yaml:",omitempty"`
@@ -97,8 +97,8 @@ type Element struct {
 	rType         reflect.Type               `json:"-"`
 	rValue        reflect.Value              `json:"-"`
 	Value         any                        `json:",omitempty" yaml:",omitempty"` //值 一般为枚举时用到
-	FromParent    bool                       //表示当前元素 包含从父级继承而来的字段、方法、文档 或者 表示当前元素是继承而来
-	Elements      map[ElementType][]*Element // 子成员 比如字段 方法 泛型类型
+	FromParent    bool                       `json:",omitempty" yaml:",omitempty"` //表示当前元素 包含从父级继承而来的字段、方法、文档 或者 表示当前元素是继承而来
+	Elements      map[ElementType][]*Element `json:",omitempty" yaml:",omitempty"` // 子成员 比如字段 方法 泛型类型
 }
 
 func copySlice(src []*Element) []*Element {
