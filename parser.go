@@ -539,6 +539,7 @@ func (p *Parser) handleConstThisPackage(file *File) {
 		tmp.ElementType = ElementEnum
 
 		tmp.Elements[ElementEnum] = append(tmp.Elements[ElementEnum], element.Clone())
+		tmp.IsEnumString = element.IsEnumString
 
 	}
 
