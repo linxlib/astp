@@ -87,6 +87,7 @@ type Element struct {
 	ItemType      ElementType `json:",omitempty" yaml:",omitempty"` //Item的元素类型
 	Item          *Element    `json:",omitempty" yaml:",omitempty"`
 	IsItemSlice   bool        `json:",omitempty" yaml:",omitempty"`
+	IsEnumString  bool        `json:",omitempty" yaml:",omitempty"`
 	Index         int
 	TagString     string                     `json:",omitempty" yaml:",omitempty"`
 	TypeString    string                     `json:",omitempty" yaml:",omitempty"` //字段类型名

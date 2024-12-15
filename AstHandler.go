@@ -141,6 +141,9 @@ func (a *AstHandler) handleConstArea() {
 										}
 
 									case *ast.BasicLit:
+										if vvv.Kind == token.STRING {
+											vv.IsEnumString = true
+										}
 										vv.Value = strings.Trim(vvv.Value, `"`)
 										hasIota = false // 直接赋值
 										isEnum = true

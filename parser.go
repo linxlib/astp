@@ -537,6 +537,7 @@ func (p *Parser) handleConstThisPackage(file *File) {
 			tmp.Elements = make(map[ElementType][]*Element)
 		}
 		tmp.ElementType = ElementEnum
+
 		tmp.Elements[ElementEnum] = append(tmp.Elements[ElementEnum], element.Clone())
 
 	}
