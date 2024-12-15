@@ -301,19 +301,20 @@ func (b *Element) Clone(i ...int) *Element {
 		newIndex = i[0]
 	}
 	var e = &Element{
-		Name:        b.Name,
-		PackagePath: b.PackagePath,
-		PackageName: b.PackageName,
-		ElementType: b.ElementType,
-		ItemType:    b.ItemType,
-		Item:        b.Item.Clone(),
-		Index:       newIndex,
-		TypeString:  b.TypeString,
-		Docs:        b.Docs,
-		Comment:     b.Comment,
-		TagString:   b.TagString,
-		Value:       b.Value,
-		Elements:    nil,
+		Name:         b.Name,
+		PackagePath:  b.PackagePath,
+		PackageName:  b.PackageName,
+		ElementType:  b.ElementType,
+		ItemType:     b.ItemType,
+		Item:         b.Item.Clone(),
+		Index:        newIndex,
+		TypeString:   b.TypeString,
+		Docs:         b.Docs,
+		Comment:      b.Comment,
+		IsEnumString: b.IsEnumString,
+		TagString:    b.TagString,
+		Value:        b.Value,
+		Elements:     nil,
 	}
 	if b.Elements != nil {
 		e.Elements = make(map[ElementType][]*Element)
