@@ -335,8 +335,10 @@ func (p *Parser) handleStructThisPackage(file *File) {
 				continue
 			}
 			findTypeName := field.TypeString
+			tmpSlice := false
 			if field.IsItemSlice || strings.HasPrefix(field.TypeString, "[]") {
 				findTypeName = strings.TrimPrefix(field.TypeString, "[]")
+				tmpSlice = true
 			}
 			var tmp *Element
 			if tmp1, ok := p.filtered[findTypeName]; ok {
@@ -346,7 +348,34 @@ func (p *Parser) handleStructThisPackage(file *File) {
 				if tmp == nil {
 					continue
 				}
+				tmp.IsItemSlice = tmpSlice
 				p.filtered[findTypeName] = tmp
+			}
+			for _, subField := range tmp.Elements[ElementField] {
+				if subField.PackagePath != PackageThisPackage {
+					continue
+				}
+				findTypeName1 := subField.TypeString
+				tmpSlice1 := false
+				if subField.IsItemSlice || strings.HasPrefix(subField.TypeString, "[]") {
+					findTypeName1 = strings.TrimPrefix(subField.TypeString, "[]")
+					tmpSlice1 = true
+				}
+				var tmp2 *Element
+				if tmp1, ok := p.filtered[findTypeName1]; ok {
+					tmp2 = tmp1
+				} else {
+					tmp2 = p.filterElementByName(files, findTypeName1)
+					if tmp2 == nil {
+						continue
+					}
+					tmp2.IsItemSlice = tmpSlice1
+					p.filtered[findTypeName1] = tmp2
+				}
+				subField.Item = tmp2.Clone()
+				subField.PackagePath = tmp2.PackagePath
+				subField.ItemType = tmp2.ItemType
+				subField.ElementType = tmp2.ElementType
 			}
 
 			//TODO: 这个字段对应的结构有可能还未处理过
