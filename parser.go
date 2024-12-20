@@ -314,6 +314,7 @@ func (p *Parser) handleThisPackage() {
 	}
 	for _, file := range p.Files {
 		p.handleActual(file)
+		p.handleStructThisPackage(file)
 	}
 	for _, file := range p.Files {
 		p.handleActual2(file)
@@ -392,12 +393,16 @@ func (p *Parser) handleStructThisPackage(file *File) {
 		}
 
 		log.Printf("  处理结构体方法: %s \n", element.Name)
+
 		for _, method := range element.Elements[ElementMethod] {
 			log.Printf("    处理方法参数: %s \n", method.Name)
 			for _, param := range method.Elements[ElementParam] {
 				if param.PackagePath != PackageThisPackage {
 					continue
 				}
+				// 参数引用为当前包
+
+				// 查找对应类型 如果为slice 则去除[]后再查找
 				findTypeName := param.TypeString
 				if param.IsItemSlice || strings.HasPrefix(param.TypeString, "[]") {
 					findTypeName = strings.TrimPrefix(param.TypeString, "[]")
@@ -412,6 +417,7 @@ func (p *Parser) handleStructThisPackage(file *File) {
 					}
 					p.filtered[findTypeName] = tmp
 				}
+				// 参数的类型信息在Item中
 				param.Item = tmp.Clone()
 				param.Docs = tmp.Docs
 				param.Comment = tmp.Comment
@@ -422,10 +428,12 @@ func (p *Parser) handleStructThisPackage(file *File) {
 				if param.Item == nil {
 					continue
 				}
+				// 遍历参数的所有字段
 				for _, field := range param.Item.Elements[ElementField] {
 					if field.PackagePath != PackageThisPackage {
 						continue
 					}
+
 					findTypeName := field.TypeString
 					if field.IsItemSlice || strings.HasPrefix(field.TypeString, "[]") {
 						findTypeName = strings.TrimPrefix(field.TypeString, "[]")
@@ -440,11 +448,38 @@ func (p *Parser) handleStructThisPackage(file *File) {
 						}
 						p.filtered[findTypeName] = tmp
 					}
+
 					field.Item = tmp.Clone()
 					field.Docs = tmp.Docs
 					field.Comment = tmp.Comment
 					field.PackagePath = tmp.PackagePath
 					field.ItemType = tmp.ElementType
+
+				}
+			}
+
+			for _, param := range method.Elements[ElementParam] {
+				if param.Item == nil {
+					continue
+				}
+				// 遍历参数的所有字段
+				for _, field := range param.Item.Elements[ElementField] {
+
+					if field.Name == "" || field.FromParent {
+						var tmp *Element
+						tmp = p.filterElementByName(files, param.TypeString)
+						if tmp == nil {
+							continue
+						}
+						param.Item = tmp.Clone()
+						param.Docs = tmp.Docs
+						param.Comment = tmp.Comment
+						param.PackagePath = tmp.PackagePath
+						param.ItemType = tmp.ElementType
+
+						break
+					}
+
 				}
 			}
 
@@ -630,7 +665,7 @@ func (p *Parser) handleActual(file *File) {
 		log.Printf("  处理结构体: %s \n", eleStruct.Name)
 		needDel := -1
 		for idx, eleField := range eleStruct.Elements[ElementField] {
-			if !eleField.FromParent || eleField.Name != "" {
+			if !eleField.FromParent && eleField.Name != "" {
 				continue
 			}
 			needDel = idx
