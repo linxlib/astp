@@ -272,17 +272,17 @@ func (a *AstHandler) findPackage(expr ast.Expr) []*PkgType {
 		aa := a.findPackage(spec.Value)
 		result = append(result, aa...)
 		return result
-	case *ast.IndexExpr:
-		bb := a.findPackage(spec.X)
+	case *ast.IndexExpr: //泛型
+		bb := a.findPackage(spec.X) //主类型
 		result = append(result, bb...)
-		aa := a.findPackage(spec.Index)
+		aa := a.findPackage(spec.Index) //泛型类型
 		for _, pkgType := range aa {
 			pkgType.IsGeneric = true
 		}
 		result = append(result, aa...)
 
 		return result
-	case *ast.IndexListExpr:
+	case *ast.IndexListExpr: //多个泛型参数
 		bb := a.findPackage(spec.X)
 		result = append(result, bb...)
 		for _, indic := range spec.Indices {
@@ -363,9 +363,10 @@ func (a *AstHandler) parseResults(params *ast.FieldList, tParams []*Element) []*
 
 				ps := a.findPackage(param.Type)
 				for _, p := range ps {
+					//TODO: 如果有多个类型(泛型)
 					tmp := CheckPackage(a.modPkg, p.PkgPath)
 					if tmp != PackageThisPackage && tmp != PackageBuiltIn && tmp != PackageThird {
-						par.Item = a.findHandler(p.PkgPath, p.TypeName)
+						par.Item = a.findHandler(p.PkgPath, p.TypeName).Clone()
 						par.IsItemSlice = p.IsSlice
 						par.PackagePath = par.Item.PackagePath
 						par.PackageName = par.Item.PackageName
@@ -402,11 +403,15 @@ func (a *AstHandler) parseResults(params *ast.FieldList, tParams []*Element) []*
 				Comment:     internal.GetComment(param.Comment),
 			}
 			ps := a.findPackage(param.Type)
+
+			// 泛型类型处理
+			// 这里ps的len>1
+			// eg. [0] 为BasePageResp [1] 为 models.User
 			for _, p := range ps {
 				tmp := CheckPackage(a.modPkg, p.PkgPath)
 				if tmp != PackageThisPackage && tmp != PackageBuiltIn && tmp != PackageThird {
 					if par.Item == nil {
-						par.Item = a.findHandler(p.PkgPath, p.TypeName)
+						par.Item = a.findHandler(p.PkgPath, p.TypeName).Clone()
 						par.ItemType = par.Item.ElementType
 						par.IsItemSlice = p.IsSlice
 						par.PackagePath = par.Item.PackagePath
@@ -414,17 +419,18 @@ func (a *AstHandler) parseResults(params *ast.FieldList, tParams []*Element) []*
 						par.ElementType = par.Item.ElementType
 						par.TypeString = p.TypeName
 					} else {
-						genericType := a.findHandler(p.PkgPath, p.TypeName)
+						// 第二个类型为泛型, 则插入到ElementGeneric集合中
+						genericType := a.findHandler(p.PkgPath, p.TypeName).Clone()
 						if par.Elements == nil {
 							par.Elements = make(map[ElementType][]*Element)
 						}
 						genericType.TypeString = p.TypeName
-						par.Elements[ElementGeneric] = append(par.Elements[ElementGeneric], genericType)
+						par.Elements[ElementGeneric] = append(par.Elements[ElementGeneric], genericType.Clone())
 					}
 
 				} else {
 					par.PackagePath = tmp
-					par.TypeString = p.TypeName
+					par.TypeString += p.TypeName
 					par.IsItemSlice = p.IsSlice
 					// tParams
 					for _, tParam := range tParams {
@@ -611,7 +617,7 @@ func (a *AstHandler) parseFields(fields []*ast.Field, tParams []*Element) []*Ele
 				for _, tParam := range tParams {
 					if tParam.Name == p.TypeName {
 						af1.Item = tParam.Clone()
-
+						af1.IsItemSlice = tParam.IsItemSlice
 						af1.PackagePath = tParam.PackagePath
 						af1.TypeString = tParam.TypeString
 						af1.ItemType = tParam.ElementType

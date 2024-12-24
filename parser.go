@@ -321,6 +321,7 @@ func (p *Parser) handleThisPackage() {
 	}
 	for _, file := range p.Files {
 		p.handleActual3(file)
+		p.handleStructThisPackage(file)
 	}
 
 }
@@ -424,6 +425,7 @@ func (p *Parser) handleStructThisPackage(file *File) {
 				param.PackagePath = tmp.PackagePath
 				param.ItemType = tmp.ElementType
 			}
+
 			for _, param := range method.Elements[ElementParam] {
 				if param.Item == nil {
 					continue
@@ -534,6 +536,43 @@ func (p *Parser) handleStructThisPackage(file *File) {
 					field.Comment = tmp.Comment
 					field.PackagePath = tmp.PackagePath
 					field.ItemType = tmp.ElementType
+
+				}
+			}
+			for _, param := range method.Elements[ElementResult] {
+				if param.Item == nil {
+					continue
+				}
+				for _, field := range param.Item.Elements[ElementField] {
+					if field.Item == nil {
+						continue
+					}
+					for _, subField := range field.Item.Elements[ElementField] {
+						if subField.PackagePath != PackageThisPackage {
+							continue
+						}
+
+						findTypeName := subField.TypeString
+						if subField.IsItemSlice || strings.HasPrefix(subField.TypeString, "[]") {
+							findTypeName = strings.TrimPrefix(subField.TypeString, "[]")
+						}
+						var tmp *Element
+						if tmp1, ok := p.filtered[findTypeName]; ok {
+							tmp = tmp1
+						} else {
+							tmp = p.filterElementByName(files, findTypeName)
+							if tmp == nil {
+								continue
+							}
+							p.filtered[findTypeName] = tmp
+						}
+						subField.Item = tmp.Clone()
+						//subField.Docs = tmp.Docs
+						//subField.Comment = tmp.Comment
+						subField.PackagePath = tmp.PackagePath
+						subField.ItemType = tmp.ElementType
+					}
+
 				}
 			}
 
@@ -837,34 +876,48 @@ func (p *Parser) handleActual3(file *File) {
 				// 先找到真实类型
 				tParams := make([]*Element, 0)
 				for _, element := range eleResult.Elements[ElementGeneric] {
-					tParams = append(tParams, element.Clone())
+					tParams = append(tParams, element)
 				}
-
+				tParams2 := make([]*Element, 0)
+				for _, element := range eleResult.Item.Elements[ElementGeneric] {
+					tParams2 = append(tParams2, element)
+				}
+				fmt.Printf("%p\n", eleResult.Item)
 				for _, element := range eleResult.Item.Elements[ElementField] {
-					if element.ItemType == ElementGeneric {
-						for _, param := range tParams {
-							if element.Item.Index == param.Index {
-								element.Name = param.Name
-								element.PackagePath = param.PackagePath
-								element.PackageName = param.PackageName
-								element.ItemType = param.ItemType
-								element.Item = param.Item.Clone()
-								element.TypeString = param.TypeString
-								element.Docs = param.Docs
-								element.Comment = param.Comment
-								element.FromParent = true
-								eleResult.ElementString = eleResult.TypeString + element.TypeString
-								if element.Elements == nil {
-									element.Elements = make(map[ElementType][]*Element)
-								}
-								if param.Elements == nil {
-									param.Elements = make(map[ElementType][]*Element)
-								}
-								element.Elements[ElementField] = copySlice(param.Elements[ElementField])
-
-							}
+					var fieldGeneric bool
+					var tParamIndex int
+					for idx, e := range tParams2 {
+						if (element.Item != nil && e.Name == element.Item.Name) || element.Generic() {
+							fieldGeneric = true
+							tParamIndex = idx
+							break
 						}
 					}
+					if fieldGeneric {
+						param := tParams[tParamIndex].Clone()
+
+						//fmt.Println("-----" + param.Name)
+						//element.Name = param.Name
+						//element.Name = "fuckyou"
+						element.PackagePath = param.PackagePath
+						element.PackageName = param.PackageName
+						element.ItemType = ElementGeneric
+						element.Item = nil
+						element.Item = param.Clone()
+						element.IsItemSlice = true
+						//fmt.Println("!!!!!" + element.Item.Name)
+						element.TypeString = param.TypeString
+						element.Docs = param.Docs
+						element.Comment = param.Comment
+						element.FromParent = true
+						eleResult.ElementString = eleResult.TypeString + element.TypeString
+						element.Elements = make(map[ElementType][]*Element)
+						//if param.Elements == nil {
+						//	param.Elements = make(map[ElementType][]*Element)
+						//}
+						//element.Elements[ElementField] = copySlice(param.Elements[ElementField])
+					}
+
 				}
 
 			}

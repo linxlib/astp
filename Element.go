@@ -78,6 +78,15 @@ func CheckPackage(modPkg string, pkg string) string {
 	return PackageThird
 }
 
+type ElementStatus int
+
+const (
+	SamePackage    ElementStatus = iota //在相同包下, 待后续解析
+	BuiltInPackage                      //内建类型
+	OtherPackage                        //当前模块的其他包
+	ThirdPackage                        //第三方包
+)
+
 type Element struct {
 	Name        string      `json:",omitempty" yaml:",omitempty"`
 	PackagePath string      `json:",omitempty" yaml:",omitempty"` //包路径
@@ -117,7 +126,7 @@ func copySlice(src []*Element) []*Element {
 }
 
 func (b *Element) String() string {
-	return fmt.Sprintf("%s.%s", b.PackagePath, b.ElementString)
+	return fmt.Sprintf("%s.%s", b.PackagePath, b.TypeString)
 }
 func (b *Element) Private() bool {
 	return internal.IsPrivate(b.Name)
@@ -300,7 +309,7 @@ func (b *Element) Clone(i ...int) *Element {
 	if len(i) > 0 {
 		newIndex = i[0]
 	}
-	var e = &Element{
+	var newElement = &Element{
 		Name:         b.Name,
 		PackagePath:  b.PackagePath,
 		PackageName:  b.PackageName,
@@ -317,13 +326,13 @@ func (b *Element) Clone(i ...int) *Element {
 		Elements:     nil,
 	}
 	if b.Elements != nil {
-		e.Elements = make(map[ElementType][]*Element)
+		newElement.Elements = make(map[ElementType][]*Element)
 		for elementType, elements := range b.Elements {
-			e.Elements[elementType] = copySlice(elements)
+			newElement.Elements[elementType] = copySlice(elements)
 		}
 	}
 
-	return e
+	return newElement
 }
 
 func PackagePath(pkgName string, typeName string) string {
