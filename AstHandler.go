@@ -13,12 +13,20 @@ import (
 type FindHandler func(pkg string, name string) *Element
 
 func NewAstHandler(f *File, modPkg string, astFile *ast.File, findHandler FindHandler) *AstHandler {
-	return &AstHandler{
+	h := &AstHandler{
 		file:        f,
 		af:          astFile,
 		modPkg:      modPkg,
 		findHandler: findHandler,
 	}
+	h.file.Structs = make(map[string]*Element)
+	h.file.Funcs = make(map[string]*Element)
+	h.file.Methods = make(map[string]*Element)
+	h.file.Vars = make(map[string]*Element)
+	h.file.Consts = make(map[string]*Element)
+	h.file.Imports = make(map[string]*Import)
+	
+	return h
 }
 
 // AstHandler ast树解析类，一个代表一个go文件
@@ -58,8 +66,8 @@ func (a *AstHandler) HandlePackages() *AstHandler {
 }
 func (a *AstHandler) HandleImports() *AstHandler {
 	log.Printf("[%s] 解析导入项 \n", a.file.Name)
-	a.file.Imports = make([]*Import, len(a.af.Imports))
-	for idx, spec := range a.af.Imports {
+	a.file.Imports = make(map[string]*Import)
+	for _, spec := range a.af.Imports {
 		i := new(Import)
 		if spec.Name != nil {
 			i.Alias = spec.Name.Name
@@ -75,7 +83,7 @@ func (a *AstHandler) HandleImports() *AstHandler {
 			i.Name = v
 		}
 		i.ImportPath = v
-		a.file.Imports[idx] = i
+		a.file.Imports[i.Name] = i
 	}
 	return a
 }
@@ -195,7 +203,7 @@ func (a *AstHandler) handleConstArea() {
 								vv.ElementType = ElementEnum
 							}
 
-							a.file.Consts = append(a.file.Consts, vv)
+							a.file.Consts[vv.Name] = vv
 						}
 					}
 				}
@@ -703,7 +711,7 @@ func (a *AstHandler) parseMethods(s *Element) []*Element {
 
 func (a *AstHandler) handleVarArea() {
 	log.Printf("[%s] 解析变量区块\n", a.file.Name)
-	a.file.Vars = make([]*Element, 0)
+	a.file.Vars = make(map[string]*Element)
 	for _, decl := range a.af.Decls {
 		switch decl := decl.(type) {
 		case *ast.GenDecl:
@@ -740,7 +748,7 @@ func (a *AstHandler) handleVarArea() {
 									vv.PackageName = vv.Item.PackageName
 								}
 							}
-							a.file.Vars = append(a.file.Vars, vv)
+							a.file.Vars[vv.Name] = vv
 						}
 					}
 				}
@@ -879,9 +887,11 @@ func (a *AstHandler) handleStructs() {
 
 								// 将结构体的方法加一份到文件的方法列表
 								if a.file.Methods == nil {
-									a.file.Methods = make([]*Element, 0)
+									a.file.Methods = make(map[string]*Element)
 								}
-								a.file.Methods = append(a.file.Methods, methods...)
+								for _, method := range methods {
+									a.file.Methods[method.Name] = method
+								}
 
 							}
 
@@ -892,7 +902,7 @@ func (a *AstHandler) handleStructs() {
 						default:
 
 						}
-						a.file.Structs = append(a.file.Structs, e)
+						a.file.Structs[e.Name] = e
 
 					}
 				}
@@ -903,7 +913,7 @@ func (a *AstHandler) handleStructs() {
 }
 func (a *AstHandler) handleFunctions() {
 	log.Printf("[%s] 解析函数\n", a.file.Name)
-	methods := make([]*Element, 0)
+	methods := make(map[string]*Element)
 	funcIndex := 0
 	for _, decl := range a.af.Decls {
 		switch decl := decl.(type) {
@@ -927,7 +937,7 @@ func (a *AstHandler) handleFunctions() {
 				}
 				method.Elements[ElementParam] = a.parseParams(decl.Type.Params, method.Elements[ElementGeneric])
 				method.Elements[ElementResult] = a.parseResults(decl.Type.Results, method.Elements[ElementGeneric])
-				methods = append(methods, method)
+				methods[method.Name] = method
 			}
 
 		}

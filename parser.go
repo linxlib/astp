@@ -212,30 +212,20 @@ func (p *Parser) parseFile(file string) (*File, string) {
 
 func (p *Parser) findInFile(f *File, name string) *Element {
 	// TODO: 这里可能只需要查找结构体，其他的暂时还用不到
-	for _, s := range f.Structs {
-		if s.Name == name {
-			return s
-		}
+	if s, ok := f.Structs[name]; ok {
+		return s
 	}
-	for _, s := range f.Methods {
-		if s.Name == name {
-			return s
-		}
+	if s, ok := f.Methods[name]; ok {
+		return s
 	}
-	for _, s := range f.Funcs {
-		if s.Name == name {
-			return s
-		}
+	if s, ok := f.Funcs[name]; ok {
+		return s
 	}
-	for _, s := range f.Vars {
-		if s.Name == name {
-			return s
-		}
+	if s, ok := f.Vars[name]; ok {
+		return s
 	}
-	for _, s := range f.Consts {
-		if s.Name == name {
-			return s
-		}
+	if s, ok := f.Consts[name]; ok {
+		return s
 	}
 	return nil
 }
@@ -295,10 +285,8 @@ func (p *Parser) filterFilesByPackage(pkg string) []*File {
 // filterElementByName 在包下的所有文件中找到名称为name的结构
 func (p *Parser) filterElementByName(files []*File, name string) *Element {
 	for _, file := range files {
-		for _, element := range file.Structs {
-			if name == element.Name {
-				return element
-			}
+		if element, ok := file.Structs[name]; ok {
+			return element
 		}
 	}
 	return nil
@@ -808,6 +796,20 @@ func (p *Parser) handleActual(file *File) {
 
 	}
 
+}
+
+func (p *Parser) VisitStructByName(name string, check func(element *Element) bool, f func(element *Element)) {
+	for _, file := range p.Files {
+		if e, ok := file.Structs[name]; ok {
+			if e.ElementType != ElementStruct {
+				continue
+			}
+			if !check(e) {
+				continue
+			}
+			f(e)
+		}
+	}
 }
 
 func (p *Parser) VisitStruct(check func(element *Element) bool, f func(element *Element)) {
