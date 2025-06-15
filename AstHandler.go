@@ -4,7 +4,6 @@ import (
 	"github.com/linxlib/astp/internal"
 	"go/ast"
 	"go/token"
-	"log"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -25,7 +24,7 @@ func NewAstHandler(f *File, modPkg string, astFile *ast.File, findHandler FindHa
 	h.file.Vars = make(map[string]*Element)
 	h.file.Consts = make(map[string]*Element)
 	h.file.Imports = make(map[string]*Import)
-	
+
 	return h
 }
 
@@ -46,7 +45,7 @@ func (a *AstHandler) Result() (*File, string) {
 }
 
 func (a *AstHandler) HandlePackages() *AstHandler {
-	log.Printf("[%s] 解析文件头\n", a.file.Name)
+	//log.Printf("[%s] 解析文件头\n", a.file.Name)
 	a.file.PackageName = a.af.Name.Name
 
 	// 由于其他结构体 函数等上面的注释也会在 a.af 中被找到
@@ -65,7 +64,7 @@ func (a *AstHandler) HandlePackages() *AstHandler {
 	return a
 }
 func (a *AstHandler) HandleImports() *AstHandler {
-	log.Printf("[%s] 解析导入项 \n", a.file.Name)
+	//log.Printf("[%s] 解析导入项 \n", a.file.Name)
 	a.file.Imports = make(map[string]*Import)
 	for _, spec := range a.af.Imports {
 		i := new(Import)
@@ -106,7 +105,7 @@ func (a *AstHandler) handleConstArea() {
 
 	// 当判定为枚举时， ElementType 被置为 types.ElementEnum
 
-	log.Printf("[%s] 解析常量区块\n", a.file.Name)
+	//log.Printf("[%s] 解析常量区块\n", a.file.Name)
 	for _, decl := range a.af.Decls {
 		switch decl := decl.(type) {
 		case *ast.GenDecl:
@@ -353,7 +352,7 @@ func (a *AstHandler) parseResults(params *ast.FieldList, tParams []*Element) []*
 	if params == nil {
 		return nil
 	}
-	log.Printf("        解析返回值: 数量: %d \n", len(params.List))
+	//log.Printf("        解析返回值: 数量: %d \n", len(params.List))
 	pars := make([]*Element, 0)
 	var pIndex int
 	for _, param := range params.List {
@@ -463,7 +462,7 @@ func (a *AstHandler) parseParams(params *ast.FieldList, tParams []*Element) []*E
 	if params == nil {
 		return nil
 	}
-	log.Printf("        解析参数: 数量: %d \n", len(params.List))
+	//log.Printf("        解析参数: 数量: %d \n", len(params.List))
 	pars := make([]*Element, 0)
 	var pIndex int
 
@@ -511,7 +510,7 @@ func (a *AstHandler) parseParams(params *ast.FieldList, tParams []*Element) []*E
 }
 
 func (a *AstHandler) parseFields(fields []*ast.Field, tParams []*Element) []*Element {
-	log.Printf("    解析结构体字段: %d\n", len(fields))
+	//log.Printf("    解析结构体字段: %d\n", len(fields))
 	var sf = make([]*Element, 0)
 	for idx, field := range fields {
 		af1 := new(Element)
@@ -676,7 +675,7 @@ func (a *AstHandler) parseReceiver(fieldList *ast.FieldList, s *Element) *Elemen
 }
 
 func (a *AstHandler) parseMethods(s *Element) []*Element {
-	log.Printf("    解析结构体方法: %s\n", s.Name)
+	//log.Printf("    解析结构体方法: %s\n", s.Name)
 	methods := make([]*Element, 0)
 	for idx, decl := range a.af.Decls {
 		switch decl := decl.(type) {
@@ -687,7 +686,7 @@ func (a *AstHandler) parseMethods(s *Element) []*Element {
 			recv := a.parseReceiver(decl.Recv, s)
 			//TODO: 此处的当前结构的方法的判断应该由 parseReceiver 处理
 			if recv != nil && recv.Item != nil && recv.Item.Name == s.Name {
-				log.Printf("      解析方法: %s \n", decl.Name.Name)
+				//log.Printf("      解析方法: %s \n", decl.Name.Name)
 				method := &Element{
 					Index:       idx,
 					PackagePath: a.file.PackagePath,
@@ -710,7 +709,7 @@ func (a *AstHandler) parseMethods(s *Element) []*Element {
 }
 
 func (a *AstHandler) handleVarArea() {
-	log.Printf("[%s] 解析变量区块\n", a.file.Name)
+	//log.Printf("[%s] 解析变量区块\n", a.file.Name)
 	a.file.Vars = make(map[string]*Element)
 	for _, decl := range a.af.Decls {
 		switch decl := decl.(type) {
@@ -783,7 +782,7 @@ func (a *AstHandler) handleTypeParam(expr ast.Expr) string {
 //
 // 3. 对于函数，则在解析其参数和返回值时才需要带上函数自身定义的泛型参数
 func (a *AstHandler) parseTypeParams(list *ast.FieldList, tParams []*Element) []*Element {
-	log.Printf("parse type param: count: %d", len(list.List))
+	//log.Printf("解析泛型类型: count: %d", len(list.List))
 	result := make([]*Element, 0)
 	tpIndex := 0
 	for _, field := range list.List {
@@ -839,7 +838,7 @@ func (a *AstHandler) parseTypeParams(list *ast.FieldList, tParams []*Element) []
 }
 
 func (a *AstHandler) handleStructs() {
-	log.Printf("[%s] 解析结构体\n", a.file.Name)
+	//log.Printf("[%s] 解析结构体\n", a.file.Name)
 	for _, decl := range a.af.Decls {
 		switch decl := decl.(type) {
 		case *ast.GenDecl:
@@ -865,16 +864,19 @@ func (a *AstHandler) handleStructs() {
 						}
 						if spec.TypeParams != nil {
 							e.Elements[ElementGeneric] = a.parseTypeParams(spec.TypeParams, []*Element{})
+							//for i, element := range e.Elements[ElementGeneric] {
+							//	log.Printf("结构体[%s] 泛型[%d]: %s\n", e.Name, i+1, element.Name+"=>"+element.TypeString)
+							//}
 						}
 						switch spec1 := spec.Type.(type) {
 						case *ast.StructType:
 							{
-								log.Printf("  解析结构体字段: %s\n", e.Name)
+								//log.Printf("  解析结构体字段: %s\n", e.Name)
 								e.Elements[ElementField] = a.parseFields(spec1.Fields.List, e.Elements[ElementGeneric])
 								for _, field := range e.Elements[ElementField] {
 									e.Elements[ElementGeneric] = append(e.Elements[ElementGeneric], field.Elements[ElementGeneric]...)
 								}
-								log.Printf("  解析结构体方法:%s\n", e.Name)
+								//log.Printf("  解析结构体方法:%s\n", e.Name)
 								methods := a.parseMethods(e)
 								e.Elements[ElementMethod] = append(e.Elements[ElementMethod], methods...)
 
@@ -896,7 +898,7 @@ func (a *AstHandler) handleStructs() {
 							}
 
 						case *ast.InterfaceType:
-							log.Printf("  解析接口类型:%s\n", e.Name)
+							//log.Printf("  解析接口类型:%s\n", e.Name)
 							e.ElementType = ElementInterface
 							e.Elements[ElementInterface] = a.parseInterfaces(spec1.Methods.List, e.Elements[ElementGeneric])
 						default:
@@ -912,7 +914,7 @@ func (a *AstHandler) handleStructs() {
 
 }
 func (a *AstHandler) handleFunctions() {
-	log.Printf("[%s] 解析函数\n", a.file.Name)
+	//log.Printf("[%s] 解析函数\n", a.file.Name)
 	methods := make(map[string]*Element)
 	funcIndex := 0
 	for _, decl := range a.af.Decls {
@@ -946,7 +948,7 @@ func (a *AstHandler) handleFunctions() {
 }
 
 func (a *AstHandler) parseInterfaces(list []*ast.Field, tParams []*Element) []*Element {
-	log.Printf("parse interface: method count: %d \n", len(list))
+	//log.Printf("parse interface: method count: %d \n", len(list))
 	interaceFields := make([]*Element, 0)
 
 	for i, field := range list {

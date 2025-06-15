@@ -3,7 +3,6 @@ package astp
 import (
 	"bufio"
 	"bytes"
-	"fmt"
 	"github.com/linxlib/astp/internal"
 	"github.com/linxlib/astp/internal/json"
 	"github.com/linxlib/astp/internal/yaml"
@@ -186,9 +185,9 @@ func (p *Parser) parseDir(dir string) map[string]*File {
 
 // parseFile 解析一个go文件
 func (p *Parser) parseFile(file string) (*File, string) {
-	log.Println("parse:" + file)
+	//log.Println("parse:" + file)
 	if p.IgnorePkg(p.getPackage(file)) {
-		log.Println("ignore:" + file)
+		//log.Println("ignore:" + file)
 		return nil, ""
 	}
 	name := filepath.Base(file)
@@ -316,10 +315,10 @@ func (p *Parser) handleThisPackage() {
 func (p *Parser) handleStructThisPackage(file *File) {
 
 	for _, element := range file.Structs {
-		log.Printf("处理结构体: %s \n", element.Name)
+		//log.Printf("处理结构体: %s \n", element.Name)
 		files := p.filterFilesByPackage(element.PackagePath)
 
-		log.Printf("  处理结构体字段: %s \n", element.Name)
+		//log.Printf("  处理结构体字段: %s \n", element.Name)
 		for _, field := range element.Elements[ElementField] {
 			if field.PackagePath != PackageThisPackage {
 				continue
@@ -381,10 +380,10 @@ func (p *Parser) handleStructThisPackage(file *File) {
 
 		}
 
-		log.Printf("  处理结构体方法: %s \n", element.Name)
+		//log.Printf("  处理结构体方法: %s \n", element.Name)
 
 		for _, method := range element.Elements[ElementMethod] {
-			log.Printf("    处理方法参数: %s \n", method.Name)
+			//log.Printf("    处理方法参数: %s \n", method.Name)
 			for _, param := range method.Elements[ElementParam] {
 				if param.PackagePath != PackageThisPackage {
 					continue
@@ -572,9 +571,9 @@ func (p *Parser) handleStructThisPackage(file *File) {
 func (p *Parser) handleFunctionThisPackage(file *File) {
 
 	for _, element := range file.Funcs {
-		log.Printf("处理函数： %s \n", element.Name)
+		//log.Printf("处理函数： %s \n", element.Name)
 		files := p.filterFilesByPackage(element.PackagePath)
-		log.Printf("  处理函数参数： %s \n", element.Name)
+		//log.Printf("  处理函数参数： %s \n", element.Name)
 		for _, param := range element.Elements[ElementParam] {
 			if param.PackagePath != PackageThisPackage {
 				continue
@@ -588,7 +587,7 @@ func (p *Parser) handleFunctionThisPackage(file *File) {
 			param.ItemType = tmp.ElementType
 
 		}
-		log.Printf("  处理函数返回值： %s \n", element.Name)
+		//log.Printf("  处理函数返回值： %s \n", element.Name)
 		for _, param := range element.Elements[ElementResult] {
 			if param.PackagePath != PackageThisPackage {
 				continue
@@ -608,7 +607,7 @@ func (p *Parser) handleFunctionThisPackage(file *File) {
 }
 func (p *Parser) handleConstThisPackage(file *File) {
 	// 对该文件的常量进行处理
-	log.Printf("处理常量，合并枚举: %s \n", file.Name)
+	//log.Printf("处理常量，合并枚举: %s \n", file.Name)
 	for _, element := range file.Consts {
 		if element.ElementType == ElementConst {
 			continue
@@ -636,7 +635,7 @@ func (p *Parser) handleConstThisPackage(file *File) {
 
 }
 func (p *Parser) handleVarThisPackage(file *File) {
-	log.Printf("处理本包变量: %s \n", file.Name)
+	//log.Printf("处理本包变量: %s \n", file.Name)
 	for _, element := range file.Vars {
 		if element.PackagePath != PackageThisPackage {
 			continue
@@ -652,13 +651,13 @@ func (p *Parser) handleVarThisPackage(file *File) {
 	}
 }
 func (p *Parser) handleActual2(file *File) {
-	log.Println("处理已更新的结构，更新其引用")
+	//log.Println("处理已更新的结构，更新其引用")
 
 	for _, eleStruct := range file.Structs {
 		if !eleStruct.FromParent {
 			continue
 		}
-		log.Printf("  处理结构体: %s \n", eleStruct.Name)
+		//log.Printf("  处理结构体: %s \n", eleStruct.Name)
 		for _, eleMethod := range eleStruct.Elements[ElementMethod] {
 			for _, param := range eleMethod.Elements[ElementParam] {
 				tmp := p.findFileByPackageAndType(param.PackagePath, param.TypeString)
@@ -680,7 +679,7 @@ func (p *Parser) handleActual2(file *File) {
 	}
 }
 func (p *Parser) handleActual(file *File) {
-	log.Println("处理泛型的实际映射类型，合并继承")
+	//log.Println("处理泛型的实际映射类型，合并继承")
 
 	for _, eleStruct := range file.Structs {
 		//if eleStruct.Name != "UserController" {
@@ -689,7 +688,7 @@ func (p *Parser) handleActual(file *File) {
 		if !eleStruct.FromParent {
 			continue
 		}
-		log.Printf("  处理结构体: %s \n", eleStruct.Name)
+		//log.Printf("  处理结构体: %s \n", eleStruct.Name)
 		needDel := -1
 		for idx, eleField := range eleStruct.Elements[ElementField] {
 			if !eleField.FromParent && eleField.Name != "" {
@@ -698,14 +697,17 @@ func (p *Parser) handleActual(file *File) {
 			needDel = idx
 			// 处理需要继承的字段时，将该字段从当前结构中删除
 			// 然后已经继承过来的字段，由于Name不是空，下次执行handleActual时不会进入此循环
-			log.Printf("    处理字段 %s \n", eleField.TypeString)
+			//log.Printf("    处理字段 %s \n", eleField.TypeString)
 
 			//继承父级时，将当前结构中声明的实际类型拉取出来
 			typeParams := eleField.Elements[ElementGeneric]
-			log.Printf("      字段声明了 %d 个泛型参数 \n", len(typeParams))
+			//log.Printf("      字段声明了 %d 个泛型参数 \n", len(typeParams))
 			// 赋值它的原始类型名 比如实际类型是 int 原始是声明为 T 的
 			// 方便后面方法处理的时候进行匹配
 			for _, param := range typeParams {
+				if eleField.Item == nil {
+					continue
+				}
 				for _, originTypeParam := range eleField.Item.Elements[ElementGeneric] {
 					if originTypeParam.Index != param.Index {
 						continue
@@ -719,7 +721,7 @@ func (p *Parser) handleActual(file *File) {
 			// TODO: 继承父级时需要将父级的导出字段也拉出来, 需要先去父级的那个Struct里先处理好
 
 			eleFieldType := eleField.Item
-			log.Printf("    处理结构 %s 的字段继承\n", eleStruct.Name)
+			//log.Printf("    处理结构 %s 的字段继承\n", eleStruct.Name)
 			for _, eleFieldTypeField := range eleFieldType.Elements[ElementField] {
 				if eleFieldTypeField.Private() {
 					continue
@@ -745,7 +747,7 @@ func (p *Parser) handleActual(file *File) {
 
 			}
 
-			log.Printf("    处理结构 %s 的方法继承\n", eleStruct.Name)
+			//log.Printf("    处理结构 %s 的方法继承\n", eleStruct.Name)
 			for _, e2 := range eleFieldType.Elements[ElementMethod] {
 				if e2.Private() {
 					continue
@@ -789,9 +791,9 @@ func (p *Parser) handleActual(file *File) {
 
 		}
 		if needDel != -1 {
-			fmt.Println("pre count:", len(eleStruct.Elements[ElementField]))
+			//fmt.Println("pre count:", len(eleStruct.Elements[ElementField]))
 			eleStruct.Elements[ElementField] = slices.Delete(eleStruct.Elements[ElementField], needDel, needDel+1)
-			fmt.Println("after count:", len(eleStruct.Elements[ElementField]))
+			//fmt.Println("after count:", len(eleStruct.Elements[ElementField]))
 		}
 
 	}
@@ -827,17 +829,17 @@ func (p *Parser) VisitStruct(check func(element *Element) bool, f func(element *
 }
 
 func (p *Parser) handleActual3(file *File) {
-	log.Println("处理方法参数和返回值中的泛型参数, 合并继承")
+	//log.Println("handleActual3 处理方法参数和返回值中的泛型参数, 合并继承")
 
 	for _, eleStruct := range file.Structs {
 		for _, eleMethod := range eleStruct.Elements[ElementMethod] {
-			log.Println("处理方法:", eleMethod.Name)
+			//log.Println("handleActual3 处理方法:", eleMethod.Name)
 			// 遍历参数
 			for _, eleParam := range eleMethod.Elements[ElementParam] {
 				if !eleParam.Generic() {
 					continue
 				}
-				log.Println("处理参数:", eleParam.Name, " ", eleParam.TypeString)
+				//log.Println("handleActual3 处理参数:", eleParam.Name, " ", eleParam.TypeString)
 				tParams := make([]*Element, 0)
 				for _, element := range eleParam.Elements[ElementGeneric] {
 					tParams = append(tParams, element.Clone())
@@ -873,7 +875,7 @@ func (p *Parser) handleActual3(file *File) {
 				if !eleResult.Generic() {
 					continue
 				}
-				log.Println("处理返回值:", eleResult.Name, " ", eleResult.TypeString)
+				//log.Println("handleActual3 处理返回值:", eleResult.Name, " ", eleResult.TypeString)
 				// 找到泛型类型中的泛型字段, 使用实际类型进行替换
 				// 先找到真实类型
 				tParams := make([]*Element, 0)
@@ -884,7 +886,7 @@ func (p *Parser) handleActual3(file *File) {
 				for _, element := range eleResult.Item.Elements[ElementGeneric] {
 					tParams2 = append(tParams2, element)
 				}
-				fmt.Printf("%p\n", eleResult.Item)
+				//fmt.Printf("%p\n", eleResult.Item)
 				for _, element := range eleResult.Item.Elements[ElementField] {
 					var fieldGeneric bool
 					var tParamIndex int
@@ -930,5 +932,5 @@ func (p *Parser) handleActual3(file *File) {
 }
 
 func (p *Parser) handleActual4(file *File) {
-	log.Println("处理方法参数和返回值中的泛型参数, 合并继承")
+	//log.Println("处理方法参数和返回值中的泛型参数, 合并继承")
 }
