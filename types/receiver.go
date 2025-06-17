@@ -9,11 +9,11 @@ var _ IElem[*Receiver] = (*Receiver)(nil)
 
 type Receiver struct {
 	Name      string             `json:"name"`
-	Pointer   bool               `json:"pointer"`
-	ElemType  constants.ElemType `json:"elem_type"`
+	Pointer   bool               `json:"pointer,omitempty"`
+	ElemType  constants.ElemType `json:"elem_type,omitempty"`
 	Type      string             `json:"type"`
 	TypeName  string             `json:"type_name"`
-	Generic   bool               `json:"generic"`
+	Generic   bool               `json:"generic,omitempty"`
 	TypeParam []*TypeParam       `json:"type_param,omitempty"`
 	Struct    *Struct            `json:"struct,omitempty"`
 }

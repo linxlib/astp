@@ -4,8 +4,8 @@ var _ IElem[*File] = (*File)(nil)
 
 type File struct {
 	Name      string       `json:"name"`
-	Key       string       `json:"key"`
-	KeyHash   string       `json:"key_hash"`
+	Key       string       `json:"-"`
+	KeyHash   string       `json:"-"`
 	Package   *Package     `json:"package,omitempty"`
 	Comment   []*Comment   `json:"comment,omitempty"`
 	Import    []*Import    `json:"import,omitempty"`

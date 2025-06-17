@@ -21,6 +21,6 @@ type EnumItem struct {
 	Type    string     `json:"type"`
 	Value   any        `json:"value"`
 	Private bool       `json:"private"`
-	Doc     []*Comment `json:"doc"`
-	Comment []*Comment `json:"comment"`
+	Doc     []*Comment `json:"doc,omitempty"`
+	Comment []*Comment `json:"comment,omitempty"`
 }

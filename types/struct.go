@@ -10,12 +10,12 @@ var _ IElem[*Struct] = (*Struct)(nil)
 type Struct struct {
 	Name      string             `json:"name"`
 	Index     int                `json:"index"`
-	Key       string             `json:"key"`
-	KeyHash   string             `json:"key_hash"`
+	Key       string             `json:"-"`
+	KeyHash   string             `json:"-"`
 	TypeName  string             `json:"type_name"`
 	Type      string             `json:"type"`
-	Private   bool               `json:"private"`
-	Generic   bool               `json:"generic"`
+	Private   bool               `json:"private,omitempty"`
+	Generic   bool               `json:"generic,omitempty"`
 	ElemType  constants.ElemType `json:"elem_type"`
 	TypeParam []*TypeParam       `json:"type_param,omitempty"`
 	Field     []*Field           `json:"field,omitempty"`

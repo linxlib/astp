@@ -11,8 +11,8 @@ var _ IElem[*Comment] = (*Comment)(nil)
 
 type Comment struct {
 	Index      int                `json:"index"`
-	Content    string             `json:"content"` //原始的一行注释内容
-	IsSelf     bool               `json:"is_self"` // 注释是否是以自己名称开头
+	Content    string             `json:"content"`           //原始的一行注释内容
+	IsSelf     bool               `json:"is_self,omitempty"` // 注释是否是以自己名称开头
 	Op         bool               `json:"op"`
 	AttrType   constants.AttrType `json:"attr_type"`
 	CustomAttr string             `json:"custom_attr,omitempty"`

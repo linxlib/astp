@@ -5,10 +5,10 @@ import "github.com/linxlib/astp/constants"
 var _ IElem[*Package] = (*Package)(nil)
 
 type Package struct {
-	FileName string                `json:"file_name"`
-	FilePath string                `json:"file_path"`
-	Name     string                `json:"name"`
-	Path     string                `json:"path"`
+	FileName string                `json:"file_name,omitempty"`
+	FilePath string                `json:"file_path,omitempty"`
+	Name     string                `json:"name,omitempty"`
+	Path     string                `json:"path,omitempty"`
 	Type     constants.PackageType `json:"type"`
 }
 

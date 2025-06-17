@@ -7,34 +7,39 @@ import (
 )
 
 type Project struct {
-	ModPkg     string           `json:"mod_pkg"`
-	BaseDir    string           `json:"base_dir"`
-	ModName    string           `json:"mod_name"`
-	ModVersion string           `json:"mod_version"`
-	ModPath    string           `json:"mod_path"`
-	SdkPath    string           `json:"sdk_path"`
-	Timestamp  int64            `json:"timestamp"`
-	Generator  string           `json:"generator"`
-	Version    string           `json:"version"`
-	File       map[string]*File `json:"file"`
+	ModPkg     string           `json:"mod_pkg,omitempty"`
+	BaseDir    string           `json:"base_dir,omitempty"`
+	ModName    string           `json:"mod_name,omitempty"`
+	ModVersion string           `json:"mod_version,omitempty"`
+	ModPath    string           `json:"mod_path,omitempty"`
+	SdkPath    string           `json:"sdk_path,omitempty"`
+	Timestamp  int64            `json:"timestamp,omitempty"`
+	Generator  string           `json:"generator,omitempty"`
+	Version    string           `json:"version,omitempty"`
+	FileMap    map[string]*File `json:"-"`
+	File       []*File          `json:"file,omitempty"`
 }
 
 func (p *Project) AddFile(f *File) {
-	if p.File == nil {
-		p.File = make(map[string]*File)
+	if p.FileMap == nil {
+		p.FileMap = make(map[string]*File)
 	}
-	p.File[f.KeyHash] = f
+	p.FileMap[f.KeyHash] = f
 }
 
 func (p *Project) Merge(files map[string]*File) {
 	for key, file := range files {
-		if _, ok := p.File[key]; !ok {
-			p.File[key] = file.Clone()
+		if _, ok := p.FileMap[key]; !ok {
+			p.FileMap[key] = file.Clone()
 		}
 	}
 }
 
 func (p *Project) Write(fileName string) error {
+	p.File = make([]*File, 0)
+	for _, file := range p.FileMap {
+		p.File = append(p.File, file)
+	}
 	// Serialize project to JSON with indentation
 	jsonData, err := json.MarshalIndent(p, "", "  ")
 	if err != nil {

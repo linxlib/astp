@@ -17,7 +17,7 @@ type Field struct {
 	Slice     bool         `json:"slice"`
 	Pointer   bool         `json:"pointer"`
 	TypeParam []*TypeParam `json:"type_param,omitempty"`
-	Tag       string       `json:"tag"`
+	Tag       string       `json:"tag,omitempty"`
 	Doc       []*Comment   `json:"doc,omitempty"`
 	Comment   []*Comment   `json:"comment,omitempty"`
 	Struct    *Struct      `json:"struct,omitempty"`

@@ -8,9 +8,9 @@ type TypeParam struct {
 	Type          string             `json:"type"`
 	TypeName      string             `json:"type_name"`
 	Index         int                `json:"index"`
-	ElemType      constants.ElemType `json:"elem_type"`
-	Pointer       bool               `json:"pointer"`
-	Slice         bool               `json:"slice"`
+	ElemType      constants.ElemType `json:"elem_type,omitempty"`
+	Pointer       bool               `json:"pointer,omitempty"`
+	Slice         bool               `json:"slice,omitempty"`
 	TypeInterface string             `json:"type_interface,omitempty"`
 	Struct        *Struct            `json:"struct,omitempty"`
 	Package       *Package           `json:"package,omitempty"`

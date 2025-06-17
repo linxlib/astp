@@ -10,12 +10,12 @@ type Param struct {
 	Index     int                `json:"index"`
 	Name      string             `json:"name"`
 	TypeName  string             `json:"type_name"`
-	ElemType  constants.ElemType `json:"elem_type"`
+	ElemType  constants.ElemType `json:"elem_type,omitempty"`
 	Package   *Package           `json:"package,omitempty"`
 	Type      string             `json:"type"`
-	Slice     bool               `json:"slice"`
-	Pointer   bool               `json:"pointer"`
-	Generic   bool               `json:"generic"`
+	Slice     bool               `json:"slice,omitempty"`
+	Pointer   bool               `json:"pointer,omitempty"`
+	Generic   bool               `json:"generic,omitempty"`
 	TypeParam []*TypeParam       `json:"type_param,omitempty"`
 	Struct    *Struct            `json:"struct,omitempty"`
 }

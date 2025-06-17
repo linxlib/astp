@@ -10,13 +10,13 @@ type Function struct {
 	Name      string             `json:"name"`
 	Key       string             `json:"key"`
 	KeyHash   string             `json:"key_hash"`
-	ElemType  constants.ElemType `json:"elem_type"`
+	ElemType  constants.ElemType `json:"elem_type,omitempty"`
 	TypeName  string             `json:"type_name"`
 	Doc       []*Comment         `json:"doc,omitempty"`
-	Private   bool               `json:"private"`
+	Private   bool               `json:"private,omitempty"`
 	Index     int                `json:"index"`
 	Package   *Package           `json:"package,omitempty"`
-	Generic   bool               `json:"generic"`
+	Generic   bool               `json:"generic,omitempty"`
 	TypeParam []*TypeParam       `json:"type_param,omitempty"`
 	Param     []*Param           `json:"param,omitempty"`
 	Result    []*Param           `json:"result,omitempty"`

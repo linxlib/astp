@@ -30,7 +30,7 @@ func FindType(pkg string, name string, modDir string, modPkg string, proj *types
 		b := filepath.Base(file.Name())
 		key := internal.GetKeyHash(pkg, b)
 
-		for _, f := range proj.File {
+		for _, f := range proj.FileMap {
 			if f.KeyHash == key {
 				if s := FindInFile(f, keyHash); s != nil {
 					return s
@@ -62,7 +62,7 @@ func FindInFile(f *types.File, keyHash string) *types.Struct {
 }
 
 func FindInProject(proj *types.Project, keyHash string) *types.Struct {
-	for _, f := range proj.File {
+	for _, f := range proj.FileMap {
 		if s := FindInFile(f, keyHash); s != nil {
 			return s
 		}
