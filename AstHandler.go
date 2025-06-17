@@ -1,6 +1,7 @@
 package astp
 
 import (
+	"github.com/linxlib/astp/constants"
 	"github.com/linxlib/astp/internal"
 	"go/ast"
 	"go/token"
@@ -214,8 +215,10 @@ func (a *AstHandler) handleConstArea() {
 type PkgType struct {
 	IsGeneric bool
 	IsSlice   bool
+	IsPtr     bool
 	PkgPath   string
 	TypeName  string
+	PkgType   constants.PackageType
 }
 
 // findPackage 返回一个声明的类型的包地址和类型名
@@ -227,7 +230,6 @@ func (a *AstHandler) findPackage(expr ast.Expr) []*PkgType {
 	result := make([]*PkgType, 0)
 	switch spec := expr.(type) {
 	case *ast.Ident: //直接一个类型
-
 		return []*PkgType{
 			&PkgType{
 				IsGeneric: false,
@@ -257,6 +259,9 @@ func (a *AstHandler) findPackage(expr ast.Expr) []*PkgType {
 		}
 	case *ast.StarExpr: //指针
 		aa := a.findPackage(spec.X)
+		for _, pkgType := range aa {
+			pkgType.IsPtr = true
+		}
 		result = append(result, aa...)
 		return result
 	case *ast.ArrayType: //数组

@@ -15,3 +15,22 @@ func IsInternalType(t string) bool {
 	}
 	return false
 }
+
+var internalGenericTypes = []string{
+	"T",
+	"E",
+	"R",
+	"S",
+	"K",
+	"V",
+}
+
+// IsInternalGenericType 是否是内部泛型类型
+func IsInternalGenericType(t string) bool {
+	for _, v := range internalGenericTypes {
+		if strings.EqualFold(t, v) {
+			return true
+		}
+	}
+	return false
+}

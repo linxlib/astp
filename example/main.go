@@ -1,17 +1,16 @@
 package main
 
 import (
-	"fmt"
-	"github.com/linxlib/astp"
-	"github.com/linxlib/astp/example/testpackage"
+	"github.com/linxlib/astp/internal/json"
+	"github.com/linxlib/astp/parsers"
+	"os"
 )
 
 func main() {
-	testpackage.TestMethod2()
-	p := astp.NewParser()
-	p.Parse("./testpackage/example2.go")
-	err := p.WriteOut("gen.json")
+	proj := parsers.ParseProj()
+	bytes, err := json.MarshalIndent(proj, "", "  ")
 	if err != nil {
-		fmt.Println(err)
+		return
 	}
+	os.WriteFile("gen1.json", bytes, 0666)
 }
