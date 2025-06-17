@@ -84,7 +84,7 @@ func FindPackage(expr ast.Expr, imports []*types.Import, modPkg string) []*astp.
 
 		return []*astp.PkgType{
 			{
-				IsGeneric: false,
+				IsGeneric: internal.IsInternalGenericType(spec.Name),
 				PkgPath:   "",
 				TypeName:  spec.Name,
 				PkgType:   PackageType("", spec.Name, modPkg),

@@ -60,3 +60,12 @@ func FindInFile(f *types.File, keyHash string) *types.Struct {
 
 	return nil
 }
+
+func FindInProject(proj *types.Project, keyHash string) *types.Struct {
+	for _, f := range proj.File {
+		if s := FindInFile(f, keyHash); s != nil {
+			return s
+		}
+	}
+	return nil
+}

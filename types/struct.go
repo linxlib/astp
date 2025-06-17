@@ -33,7 +33,8 @@ func (s *Struct) IsTop() bool {
 
 	b := false
 	for _, field := range s.Field {
-		if !field.IsTop() {
+
+		if !field.IsTop() || field.Name == constants.EmptyName {
 			return false
 		}
 		b = true
@@ -78,6 +79,29 @@ func (s *Struct) Clone() *Struct {
 		Package:   s.Package.Clone(),
 	}
 }
+
+func (s *Struct) CloneTiny() *Struct {
+	if s == nil {
+		return nil
+	}
+	return &Struct{
+		Index:    s.Index,
+		Name:     s.Name,
+		Key:      s.Key,
+		KeyHash:  s.KeyHash,
+		TypeName: s.TypeName,
+		Type:     s.Type,
+		Private:  s.Private,
+		Generic:  s.Generic,
+		//TypeParam: CopySlice(s.TypeParam),
+		Field:   CopySlice(s.Field),
+		Doc:     CopySlice(s.Doc),
+		Comment: CopySlice(s.Comment),
+		//Method:    CopySlice(s.Method),
+		Package: s.Package.Clone(),
+	}
+}
+
 func (s *Struct) HasAttr(attr constants.AttrType) bool {
 	for _, comment := range s.Doc {
 		if comment.Op && comment.AttrType == attr {

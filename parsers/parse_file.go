@@ -15,13 +15,13 @@ func ParseFile(file string, proj *types.Project) *types.File {
 
 	p := ParsePackage(node, file, proj)
 
-	doc := HandleDoc(node.Doc)
+	doc := HandleDoc(node.Doc, p.Name)
 	i := ParseImport(node)
 	v := ParseVar(node, proj, i)
 
 	v1 := ParseConst(node, p)
 
-	f1 := ParseFunction(node, p, i, proj)
+	//f1 := ParseFunction(node, p, i, proj)
 	//f2 := ParseInterface(node,  i, proj)
 
 	s := ParseStruct(node, p, i, proj)
@@ -34,7 +34,7 @@ func ParseFile(file string, proj *types.Project) *types.File {
 		Import:    i,
 		Variable:  v,
 		Const:     v1,
-		Function:  f1,
+		Function:  nil,
 		Interface: nil,
 		Struct:    s,
 	}

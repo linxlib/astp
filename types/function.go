@@ -23,6 +23,18 @@ type Function struct {
 	Receiver  *Receiver          `json:"receiver,omitempty"`
 }
 
+func (f *Function) IsOp() bool {
+	if f.Doc == nil {
+		return false
+	}
+	for _, comment := range f.Doc {
+		if comment.Op {
+			return true
+		}
+	}
+	return false
+}
+
 func (f *Function) String() string {
 	return f.Name
 }

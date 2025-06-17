@@ -31,6 +31,7 @@ func (c *Comment) Clone() *Comment {
 		Index:      c.Index,
 		Content:    c.Content,
 		Op:         c.Op,
+		IsSelf:     c.IsSelf,
 		AttrType:   c.AttrType,
 		CustomAttr: c.CustomAttr,
 		AttrValue:  c.AttrValue,
@@ -41,11 +42,12 @@ func (c *Comment) GetWithoutSelf(name string) string {
 	return strings.TrimPrefix(strings.TrimSpace(c.Content), name)
 }
 
-func OfComment(index int, content string) *Comment {
+func OfComment(index int, content string, selfName string) *Comment {
 	var attrType = constants.AT_NONE
 	attrCustom := ""
 	attrValue := ""
 	var op = false
+	isSelf := false
 	if strings.HasPrefix(content, "@") {
 		re := regexp.MustCompile(`@(\S+)`)
 		matches := re.FindAllStringSubmatch(content, -1)
@@ -62,12 +64,17 @@ func OfComment(index int, content string) *Comment {
 		a = strings.TrimPrefix(a, tmp0)
 		a = strings.TrimSpace(a)
 		attrValue = a
-
+	} else {
+		if strings.HasPrefix(strings.TrimSpace(content), selfName) {
+			isSelf = true
+		}
 	}
+
 	return &Comment{
 		Index:      index,
 		Content:    content,
 		Op:         op,
+		IsSelf:     isSelf,
 		AttrType:   attrType,
 		CustomAttr: attrCustom,
 		AttrValue:  attrValue,

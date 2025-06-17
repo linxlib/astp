@@ -1,16 +1,14 @@
 package main
 
 import (
-	"github.com/linxlib/astp/internal/json"
+	"fmt"
 	"github.com/linxlib/astp/parsers"
-	"os"
 )
 
 func main() {
 	proj := parsers.ParseProj()
-	bytes, err := json.MarshalIndent(proj, "", "  ")
+	err := proj.Write("gen1")
 	if err != nil {
-		return
+		fmt.Printf("%s\n", err)
 	}
-	os.WriteFile("gen1.json", bytes, 0666)
 }

@@ -13,8 +13,7 @@ func ParseField(fields []*ast.Field, imports []*types.Import, proj *types.Projec
 	for idx, field := range fields {
 		af1 := new(types.Field)
 		af1.Index = idx
-		af1.Comment = HandleDoc(field.Comment)
-		af1.Doc = HandleDoc(field.Doc)
+
 		af1.Package = new(types.Package)
 		if field.Names != nil {
 			af1.Name = field.Names[0].Name
@@ -22,6 +21,8 @@ func ParseField(fields []*ast.Field, imports []*types.Import, proj *types.Projec
 		} else {
 			af1.Name = constants.EmptyName
 		}
+		af1.Comment = HandleDoc(field.Comment, af1.Name)
+		af1.Doc = HandleDoc(field.Doc, af1.Name)
 		if field.Tag != nil {
 			af1.Tag = field.Tag.Value
 		}

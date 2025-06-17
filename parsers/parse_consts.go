@@ -32,8 +32,8 @@ func ParseConst(af *ast.File, p *types.Package) []*types.Const {
 								Name:    v.Name,
 								Package: p.Clone(),
 								Index:   idx,
-								Doc:     HandleDoc(spec.Doc),
-								Comment: HandleDoc(spec.Comment),
+								Doc:     HandleDoc(spec.Doc, v.Name),
+								Comment: HandleDoc(spec.Comment, v.Name),
 							}
 							isEnum := false
 							// 标记了类型，则有可能是枚举
@@ -48,31 +48,39 @@ func ParseConst(af *ast.File, p *types.Package) []*types.Const {
 											curValue = 0
 											hasIota = true
 											isEnum = true
+											vv.Iota = hasIota
 										}
 
 									case *ast.BasicLit:
 										vv.Value = strings.Trim(vvv.Value, `"`)
 										hasIota = false // 直接赋值
 										isEnum = true
+
 										vv.ElemType = constants.ElemEnum
 									case *ast.BinaryExpr:
-										if vvv.X.(*ast.Ident).Name == "iota" {
-											hasIota = true
-											isEnum = true
-											curValue = 0
-											switch vvv.Y.(*ast.BasicLit).Kind {
-											case token.INT:
-												temp, _ := strconv.Atoi(vvv.Y.(*ast.BasicLit).Value)
-												if vvv.Op == token.ADD {
-													curValue += temp
-												} else if vvv.Op == token.SUB {
-													curValue -= temp
+										switch btype := vvv.X.(type) {
+										case *ast.Ident:
+											if btype.Name == "iota" {
+												hasIota = true
+												isEnum = true
+												curValue = 0
+												switch vvv.Y.(*ast.BasicLit).Kind {
+												case token.INT:
+													temp, _ := strconv.Atoi(vvv.Y.(*ast.BasicLit).Value)
+													if vvv.Op == token.ADD {
+														curValue += temp
+													} else if vvv.Op == token.SUB {
+														curValue -= temp
+													}
+													//TODO: token.OR token.AND etc...
+													// eg. xx = iota << 2  || xxx = iota +1 | 1
+												default:
+													panic("unhandled constant type")
 												}
-												//TODO: token.OR token.AND etc...
-											default:
-												panic("unhandled default case")
+												vv.Value = curValue
 											}
-											vv.Value = curValue
+										default:
+											panic("unhandled constant type")
 										}
 
 									}
@@ -93,6 +101,7 @@ func ParseConst(af *ast.File, p *types.Package) []*types.Const {
 									isEnum = true
 									vv.Type = constAreaType
 									vv.TypeName = constAreaType
+									vv.Iota = hasIota
 									curValue++
 									vv.Value = curValue
 

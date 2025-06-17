@@ -27,6 +27,7 @@ var AttrTypes = map[string]AttrType{
 	"SERVICE":    AT_SERVICE,
 	"ENTITY":     AT_ENTITY,
 	"TABLE":      AT_TABLE,
+	"DEPRECATED": AT_DEPRECATED,
 }
 
 type AttrType = int
@@ -64,7 +65,7 @@ const (
 	AT_SERVICE
 	AT_ENTITY
 	AT_TABLE //@Table
-
+	AT_DEPRECATED
 	// AT_CUSTOM
 	AT_CUSTOM
 )

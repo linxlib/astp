@@ -18,7 +18,7 @@ func ParseInterface(list []*ast.Field, imports []*types.Import, proj *types.Proj
 		item := &types.Interface{
 			Name:  name,
 			Index: i,
-			Doc:   HandleDoc(field.Doc),
+			Doc:   HandleDoc(field.Doc, name),
 		}
 		switch spec := field.Type.(type) {
 		case *ast.FuncType:

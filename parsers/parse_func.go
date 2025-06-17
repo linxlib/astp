@@ -20,7 +20,7 @@ func ParseFunction(af *ast.File, p *types.Package, imports []*types.Import, proj
 					ElemType: constants.ElemFunc,
 					TypeName: decl.Name.Name,
 
-					Doc:     HandleDoc(decl.Doc),
+					Doc:     HandleDoc(decl.Doc, decl.Name.Name),
 					Private: internal.IsPrivate(decl.Name.Name),
 					Index:   funcIndex,
 					Package: p.Clone(),

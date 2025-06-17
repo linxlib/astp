@@ -14,6 +14,7 @@ type Variable struct {
 	Value    any                `json:"value"`
 	Type     string             `json:"type"`
 	TypeName string             `json:"type_name"`
+	Iota     bool               `json:"iota,omitempty"`
 	Package  *Package           `json:"package,omitempty"`
 	Struct   *Struct            `json:"struct,omitempty"`
 	Doc      []*Comment         `json:"doc,omitempty"`

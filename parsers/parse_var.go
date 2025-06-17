@@ -22,8 +22,6 @@ func ParseVar(af *ast.File, proj *types.Project, imports []*types.Import) []*typ
 							vv := &types.Variable{
 								Name:     v.Name,
 								ElemType: constants.ElemVar,
-								Value:    nil,
-								TypeName: "",
 							}
 
 							if len(spec.Values) == len(spec.Names) {
@@ -43,7 +41,7 @@ func ParseVar(af *ast.File, proj *types.Project, imports []*types.Import) []*typ
 					}
 				}
 			default:
-				continue
+
 			}
 		}
 	}

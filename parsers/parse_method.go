@@ -22,7 +22,7 @@ func ParseMethod(af *ast.File, s *types.Struct, imports []*types.Import, proj *t
 				method := &types.Function{
 					Index:    idx,
 					Name:     decl.Name.Name,
-					Doc:      HandleDoc(decl.Doc),
+					Doc:      HandleDoc(decl.Doc, decl.Name.Name),
 					Package:  s.Package.Clone(),
 					ElemType: constants.ElemFunc,
 					TypeName: decl.Name.Name,

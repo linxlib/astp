@@ -49,6 +49,8 @@ func ParseResults(params *ast.FieldList, imports []*types.Import, proj *types.Pr
 						}
 						if par.Generic {
 							par.TypeName += p.PkgPath + "." + p.TypeName
+						} else {
+							par.TypeName += p.TypeName
 						}
 						//par.TypeName += p.PkgPath + "." + p.TypeName
 
@@ -122,6 +124,8 @@ func ParseResults(params *ast.FieldList, imports []*types.Import, proj *types.Pr
 							par.TypeName += p.PkgPath + "." + p.TypeName
 						}
 
+					} else {
+						par.TypeName += p.TypeName
 					}
 					//par.TypeName += p.PkgPath + "." + p.TypeName
 

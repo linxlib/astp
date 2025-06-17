@@ -51,6 +51,8 @@ func ParseParam(params *ast.FieldList, imports []*types.Import, proj *types.Proj
 						} else {
 							par.TypeName += p.PkgPath + "." + p.TypeName
 						}
+					} else {
+						par.TypeName += p.TypeName
 					}
 
 				} else {
@@ -60,7 +62,6 @@ func ParseParam(params *ast.FieldList, imports []*types.Import, proj *types.Proj
 						} else {
 							tpString = append(tpString, p.PkgPath+"."+p.TypeName)
 						}
-
 					}
 					par.Slice = p.IsSlice
 				}
