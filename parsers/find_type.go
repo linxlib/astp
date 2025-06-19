@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-func GetPackageDir(pkgPath string, modDir string, modPkg string) string {
+func getPackageDir(pkgPath string, modDir string, modPkg string) string {
 	if strings.EqualFold(pkgPath, "main") { // if main return default path
 		return modDir
 	}
@@ -18,8 +18,8 @@ func GetPackageDir(pkgPath string, modDir string, modPkg string) string {
 	return ""
 }
 
-func FindType(pkg string, name string, modDir string, modPkg string, proj *types.Project) *types.Struct {
-	dir := GetPackageDir(pkg, modDir, modPkg)
+func findType(pkg string, name string, modDir string, modPkg string, proj *types.Project) *types.Struct {
+	dir := getPackageDir(pkg, modDir, modPkg)
 	if dir == "" {
 		return nil
 	}
@@ -32,40 +32,21 @@ func FindType(pkg string, name string, modDir string, modPkg string, proj *types
 
 		for _, f := range proj.FileMap {
 			if f.KeyHash == key {
-				if s := FindInFile(f, keyHash); s != nil {
+				if s := f.FindStruct(keyHash); s != nil {
 					return s
 				}
 			}
 		}
 	}
 	// 如果之前未解析过，则对该目录进行目录解析
-	filesa := ParseDir(dir, proj)
+	filesa := parseDir(dir, proj)
 	proj.Merge(filesa)
 
 	for _, v := range filesa {
-		if s := FindInFile(v, keyHash); s != nil {
+		if s := v.FindStruct(keyHash); s != nil {
 			return s
 		}
 	}
 
-	return nil
-}
-
-func FindInFile(f *types.File, keyHash string) *types.Struct {
-	for _, s := range f.Struct {
-		if s.KeyHash == keyHash {
-			return s
-		}
-	}
-
-	return nil
-}
-
-func FindInProject(proj *types.Project, keyHash string) *types.Struct {
-	for _, f := range proj.FileMap {
-		if s := FindInFile(f, keyHash); s != nil {
-			return s
-		}
-	}
 	return nil
 }

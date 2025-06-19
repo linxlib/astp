@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-func ParseResults(params *ast.FieldList, imports []*types.Import, proj *types.Project) []*types.Param {
+func parseResults(params *ast.FieldList, imports []*types.Import, proj *types.Project) []*types.Param {
 	if params == nil {
 		return nil
 	}
@@ -23,13 +23,13 @@ func ParseResults(params *ast.FieldList, imports []*types.Import, proj *types.Pr
 					Package:  new(types.Package),
 				}
 
-				ps := FindPackage(param.Type, imports, proj.ModPkg)
+				ps := findPackage(param.Type, imports, proj.ModPkg)
 				tpString := make([]string, 0)
 				for i, p := range ps {
 					//TODO: 如果有多个类型(泛型)
 					if i == 0 {
 						par.Type = p.TypeName
-						par.Struct = FindType(p.PkgPath, p.TypeName, proj.BaseDir, proj.ModPkg, proj)
+						par.Struct = findType(p.PkgPath, p.TypeName, proj.BaseDir, proj.ModPkg, proj)
 						if par.Struct != nil {
 							par.Package = par.Struct.Package.Clone()
 						} else {
@@ -89,17 +89,17 @@ func ParseResults(params *ast.FieldList, imports []*types.Import, proj *types.Pr
 				ElemType: constants.ElemResult,
 				Package:  new(types.Package),
 			}
-			ps := FindPackage(param.Type, imports, proj.ModPkg)
+			ps := findPackage(param.Type, imports, proj.ModPkg)
 
 			// 泛型类型处理
 			// 这里ps的len>1
 			// eg. [0] 为BasePageResp [1] 为 models.User
 			tpString := make([]string, 0)
 			for i, p := range ps {
-				//tmp := CheckPackage(proj.ModPkg, p.PkgPath)
+				//tmp := checkPackage(proj.ModPkg, p.PkgPath)
 				if i == 0 {
 					par.Type = p.TypeName
-					par.Struct = FindType(p.PkgPath, p.TypeName, proj.BaseDir, proj.ModPkg, proj)
+					par.Struct = findType(p.PkgPath, p.TypeName, proj.BaseDir, proj.ModPkg, proj)
 					if par.Struct != nil {
 						par.Package = par.Struct.Package.Clone()
 					} else {

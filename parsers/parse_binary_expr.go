@@ -5,15 +5,15 @@ import (
 	"go/token"
 )
 
-func ParseBinaryExpr(expr ast.Expr) []string {
+func parseBinaryExpr(expr ast.Expr) []string {
 
 	result := make([]string, 0)
 	switch expr := expr.(type) {
 	case *ast.BinaryExpr:
 		if expr.Op == token.OR {
-			xx := ParseBinaryExpr(expr.X)
+			xx := parseBinaryExpr(expr.X)
 			result = append(result, xx...)
-			yy := ParseBinaryExpr(expr.Y)
+			yy := parseBinaryExpr(expr.Y)
 			result = append(result, yy...)
 			return result
 		}
@@ -21,16 +21,16 @@ func ParseBinaryExpr(expr ast.Expr) []string {
 		result = append(result, expr.Name)
 		return result
 	case *ast.IndexExpr:
-		xx := ParseBinaryExpr(expr.X)
+		xx := parseBinaryExpr(expr.X)
 		result = append(result, xx...)
-		idx := ParseBinaryExpr(expr.Index)
+		idx := parseBinaryExpr(expr.Index)
 		result = append(result, idx...)
 		return result
 	case *ast.IndexListExpr:
-		xx := ParseBinaryExpr(expr.X)
+		xx := parseBinaryExpr(expr.X)
 		result = append(result, xx...)
 		for _, indic := range expr.Indices {
-			idx := ParseBinaryExpr(indic)
+			idx := parseBinaryExpr(indic)
 			result = append(result, idx...)
 		}
 		return result

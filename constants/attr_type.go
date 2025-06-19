@@ -30,6 +30,37 @@ var AttrTypes = map[string]AttrType{
 	"DEPRECATED": AT_DEPRECATED,
 }
 
+// AttrNames maps AttrType values to their string representations
+var AttrNames = map[AttrType]string{
+	AT_BODY:       "BODY",
+	AT_QUERY:      "QUERY",
+	AT_PATH:       "PATH",
+	AT_PLAIN:      "PLAIN",
+	AT_XML:        "XML",
+	AT_YAML:       "YAML",
+	AT_JSON:       "JSON",
+	AT_FORM:       "FORM",
+	AT_COOKIE:     "COOKIE",
+	AT_MULTIPART:  "MULTIPART",
+	AT_POST:       "POST",
+	AT_GET:        "GET",
+	AT_PUT:        "PUT",
+	AT_DELETE:     "DELETE",
+	AT_PATCH:      "PATCH",
+	AT_OPTIONS:    "OPTIONS",
+	AT_TRACE:      "TRACE",
+	AT_ANY:        "ANY",
+	AT_HEAD:       "HEAD",
+	AT_IGNORE:     "IGNORE",
+	AT_ROUTE:      "ROUTE",
+	AT_CONTROLLER: "CONTROLLER",
+	AT_BASE:       "BASE",
+	AT_SERVICE:    "SERVICE",
+	AT_ENTITY:     "ENTITY",
+	AT_TABLE:      "TABLE",
+	AT_DEPRECATED: "DEPRECATED",
+}
+
 type AttrType = int
 
 const (
@@ -37,6 +68,7 @@ const (
 	// AT_BODY param
 	AT_BODY //@Body
 	AT_QUERY
+	AT_HEADER
 	AT_PATH
 	AT_PLAIN
 	AT_XML

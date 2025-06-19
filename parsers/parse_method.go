@@ -7,22 +7,23 @@ import (
 	"go/ast"
 )
 
-func ParseMethod(af *ast.File, s *types.Struct, imports []*types.Import, proj *types.Project) []*types.Function {
+func parseMethod(af *ast.File, s *types.Struct, imports []*types.Import, proj *types.Project) []*types.Function {
 	methods := make([]*types.Function, 0)
-	for idx, decl := range af.Decls {
+	methodIndex := 0
+	for _, decl := range af.Decls {
 		switch decl := decl.(type) {
 		case *ast.FuncDecl:
 			if decl.Recv == nil {
 				continue
 			}
-			recv := ParseReceiver(decl.Recv, s, imports, proj)
+			recv := parseReceiver(decl.Recv, s, imports, proj)
 			//TODO: 此处的当前结构的方法的判断应该由 parseReceiver 处理
 			if recv != nil && recv.Struct != nil && recv.Struct.Name == s.Name {
 				//log.Printf("      解析方法: %s \n", decl.Name.Name)
 				method := &types.Function{
-					Index:    idx,
+					Index:    methodIndex,
 					Name:     decl.Name.Name,
-					Doc:      HandleDoc(decl.Doc, decl.Name.Name),
+					Doc:      parseDoc(decl.Doc, decl.Name.Name),
 					Package:  s.Package.Clone(),
 					ElemType: constants.ElemFunc,
 					TypeName: decl.Name.Name,
@@ -32,10 +33,11 @@ func ParseMethod(af *ast.File, s *types.Struct, imports []*types.Import, proj *t
 				method.KeyHash = internal.GetKeyHash(s.Package.Path, method.Name)
 				method.Receiver = recv
 
-				method.Param = ParseParam(decl.Type.Params, imports, proj)
-				method.Result = ParseResults(decl.Type.Results, imports, proj)
+				method.Param = parseParam(decl.Type.Params, imports, proj)
+				method.Result = parseResults(decl.Type.Results, imports, proj)
 
 				methods = append(methods, method)
+				methodIndex++
 			}
 
 		}

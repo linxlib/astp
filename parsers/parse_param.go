@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-func ParseParam(params *ast.FieldList, imports []*types.Import, proj *types.Project) []*types.Param {
+func parseParam(params *ast.FieldList, imports []*types.Import, proj *types.Project) []*types.Param {
 	if params == nil {
 		return nil
 	}
@@ -22,12 +22,12 @@ func ParseParam(params *ast.FieldList, imports []*types.Import, proj *types.Proj
 				ElemType: constants.ElemParam,
 				Package:  new(types.Package),
 			}
-			ps := FindPackage(param.Type, imports, proj.ModPkg)
+			ps := findPackage(param.Type, imports, proj.ModPkg)
 			tpString := make([]string, 0)
 			for i, p := range ps {
 				if i == 0 {
 					par.Type = p.TypeName
-					par.Struct = FindType(p.PkgPath, p.TypeName, proj.BaseDir, proj.ModPkg, proj)
+					par.Struct = findType(p.PkgPath, p.TypeName, proj.BaseDir, proj.ModPkg, proj)
 					if par.Struct != nil {
 						par.Package = par.Struct.Package.Clone()
 					} else {

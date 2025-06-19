@@ -42,3 +42,13 @@ func (f *File) Clone() *File {
 func (f *File) IsMainPackage() bool {
 	return f.Package.Name == "main"
 }
+
+func (f *File) FindStruct(keyHash string) *Struct {
+	for _, s := range f.Struct {
+		if s.KeyHash == keyHash {
+			return s
+		}
+	}
+
+	return nil
+}

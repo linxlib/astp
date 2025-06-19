@@ -2,13 +2,19 @@ package main
 
 import (
 	"fmt"
-	"github.com/linxlib/astp/parsers"
+	"github.com/linxlib/astp"
 )
 
 func main() {
-	proj := parsers.ParseProj()
-	err := proj.Write("gen1")
+	parser := &astp.Parser{}
+	err := parser.Parse()
 	if err != nil {
-		fmt.Printf("%s\n", err)
+		fmt.Println(err)
+		return
+	}
+	err = parser.Write("gen.gz")
+	if err != nil {
+		fmt.Println(err)
+		return
 	}
 }

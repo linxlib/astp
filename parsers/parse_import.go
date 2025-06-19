@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-func ParseImport(af *ast.File) []*types.Import {
+func parseImport(af *ast.File) []*types.Import {
 	var result = make([]*types.Import, 0)
 	for _, spec := range af.Imports {
 		i := &types.Import{

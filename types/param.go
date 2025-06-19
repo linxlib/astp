@@ -2,6 +2,7 @@ package types
 
 import (
 	"github.com/linxlib/astp/constants"
+	"reflect"
 )
 
 var _ IElem[*Param] = (*Param)(nil)
@@ -18,6 +19,7 @@ type Param struct {
 	Generic   bool               `json:"generic,omitempty"`
 	TypeParam []*TypeParam       `json:"type_param,omitempty"`
 	Struct    *Struct            `json:"struct,omitempty"`
+	rType     reflect.Type
 }
 
 func (p *Param) String() string {
@@ -41,4 +43,10 @@ func (p *Param) Clone() *Param {
 		Generic:   p.Generic,
 		TypeParam: CopySlice(p.TypeParam),
 	}
+}
+func (p *Param) SetRType(t reflect.Type) {
+	p.rType = t
+}
+func (p *Param) GetRType() reflect.Type {
+	return p.rType
 }

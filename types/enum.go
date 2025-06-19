@@ -15,6 +15,28 @@ type Enum struct {
 	Enums    []*EnumItem        `json:"enums,omitempty"`
 }
 
+func (e *Enum) String() string {
+	return e.Name
+}
+
+func (e *Enum) Clone() *Enum {
+	if e == nil {
+		return nil
+	}
+	return &Enum{
+		Index:    e.Index,
+		Type:     e.Type,
+		TypeName: e.TypeName,
+		ElemType: e.ElemType,
+		Name:     e.Name,
+		Doc:      e.Doc,
+		Comment:  e.Comment,
+		Private:  e.Private,
+		Iota:     e.Iota,
+		Enums:    CopySlice(e.Enums),
+	}
+}
+
 type EnumItem struct {
 	Index   int        `json:"index"`
 	Name    string     `json:"name"`
@@ -23,4 +45,23 @@ type EnumItem struct {
 	Private bool       `json:"private"`
 	Doc     []*Comment `json:"doc,omitempty"`
 	Comment []*Comment `json:"comment,omitempty"`
+}
+
+func (e *EnumItem) String() string {
+	return e.Name
+}
+
+func (e *EnumItem) Clone() *EnumItem {
+	if e == nil {
+		return nil
+	}
+	return &EnumItem{
+		Index:   e.Index,
+		Name:    e.Name,
+		Type:    e.Type,
+		Value:   e.Value,
+		Private: e.Private,
+		Doc:     CopySlice(e.Doc),
+		Comment: CopySlice(e.Comment),
+	}
 }

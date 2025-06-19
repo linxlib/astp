@@ -11,16 +11,16 @@ var (
 )
 
 func init() {
-	flag.StringVar(&outFile, "o", "default", "-o gen.json")
+	flag.StringVar(&outFile, "o", "gen.gz", "-o gen.gz")
 }
 func main() {
 	flag.Parse()
-	p := astp.NewParser()
+	p := &astp.Parser{}
 	p.Parse()
 	if outFile == "" {
-		outFile = "gen.json"
+		outFile = "gen.gz"
 	}
-	err := p.WriteOut(outFile)
+	err := p.Write(outFile)
 	if err != nil {
 		fmt.Println(err)
 	}

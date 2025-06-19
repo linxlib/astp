@@ -9,7 +9,7 @@ import (
 	"strings"
 )
 
-func ParsePackage(af *ast.File, file string, proj *types.Project) *types.Package {
+func parsePackage(af *ast.File, file string, proj *types.Project) *types.Package {
 
 	f, _ := filepath.Abs(file)
 	f = strings.ReplaceAll(f, "\\", "/")

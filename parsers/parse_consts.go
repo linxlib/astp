@@ -9,7 +9,7 @@ import (
 	"strings"
 )
 
-func ParseConst(af *ast.File, p *types.Package) []*types.Const {
+func parseConst(af *ast.File, p *types.Package) []*types.Const {
 
 	consts := make([]*types.Const, 0)
 	for _, decl := range af.Decls {
@@ -32,8 +32,8 @@ func ParseConst(af *ast.File, p *types.Package) []*types.Const {
 								Name:    v.Name,
 								Package: p.Clone(),
 								Index:   idx,
-								Doc:     HandleDoc(spec.Doc, v.Name),
-								Comment: HandleDoc(spec.Comment, v.Name),
+								Doc:     parseDoc(spec.Doc, v.Name),
+								Comment: parseDoc(spec.Comment, v.Name),
 							}
 							isEnum := false
 							// 标记了类型，则有可能是枚举

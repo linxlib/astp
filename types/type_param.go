@@ -32,7 +32,7 @@ func (t *TypeParam) Clone() *TypeParam {
 		Pointer:       t.Pointer,
 		Slice:         t.Slice,
 		TypeInterface: t.TypeInterface,
-		Struct:        t.Struct,
-		Package:       t.Package,
+		Struct:        t.Struct.Clone(),
+		Package:       t.Package.Clone(),
 	}
 }

@@ -2,6 +2,7 @@ package types
 
 import (
 	"reflect"
+	"strings"
 )
 
 var _ IElem[*Field] = (*Field)(nil)
@@ -54,7 +55,7 @@ func (f *Field) Clone() *Field {
 }
 
 func (f *Field) GetTag() reflect.StructTag {
-	return reflect.StructTag(f.Tag)
+	return reflect.StructTag(strings.Trim(f.Tag, "`"))
 }
 
 func (f *Field) GetTagByName(name string) string {

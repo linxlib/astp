@@ -52,7 +52,7 @@ func OfComment(index int, content string, selfName string) *Comment {
 		re := regexp.MustCompile(`@(\S+)`)
 		matches := re.FindAllStringSubmatch(content, -1)
 		tmp0 := "@" + matches[0][1]
-		tmp := strings.ToUpper(tmp0)
+		tmp := strings.ToUpper(matches[0][1])
 		op = true
 		if v, ok := constants.AttrTypes[tmp]; ok {
 			attrType = v
@@ -67,6 +67,10 @@ func OfComment(index int, content string, selfName string) *Comment {
 	} else {
 		if strings.HasPrefix(strings.TrimSpace(content), selfName) {
 			isSelf = true
+			a := strings.TrimSpace(content)
+			a = strings.TrimPrefix(a, selfName)
+			a = strings.TrimSpace(a)
+			attrValue = a
 		}
 	}
 
@@ -79,4 +83,11 @@ func OfComment(index int, content string, selfName string) *Comment {
 		CustomAttr: attrCustom,
 		AttrValue:  attrValue,
 	}
+}
+func (c *Comment) IsHttpMethod() bool {
+	return c.Op && (c.AttrType == constants.AT_ANY ||
+		c.AttrType == constants.AT_POST ||
+		c.AttrType == constants.AT_PUT ||
+		c.AttrType == constants.AT_DELETE ||
+		c.AttrType == constants.AT_GET || c.AttrType == constants.AT_OPTIONS || c.AttrType == constants.AT_PATCH || c.AttrType == constants.AT_HEAD)
 }

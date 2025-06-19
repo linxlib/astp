@@ -1,5 +1,7 @@
 package types
 
+import "github.com/linxlib/astp/constants"
+
 type IElem[T any] interface {
 	String() string
 	Clone() T
@@ -30,4 +32,13 @@ func CopySliceWithFilter[T IElem[T]](src []T, filter func(T) bool) []T {
 		}
 	}
 	return result
+}
+
+type PkgType struct {
+	IsGeneric bool
+	IsSlice   bool
+	IsPtr     bool
+	PkgPath   string
+	TypeName  string
+	PkgType   constants.PackageType
 }

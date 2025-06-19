@@ -7,9 +7,9 @@ import (
 	"strings"
 )
 
-func ParseReceiver(recv *ast.FieldList, s *types.Struct, imports []*types.Import, proj *types.Project) *types.Receiver {
+func parseReceiver(recv *ast.FieldList, s *types.Struct, imports []*types.Import, proj *types.Project) *types.Receiver {
 	receiver := recv.List[0]
-	ps := FindPackage(receiver.Type, imports, proj.ModPkg)
+	ps := findPackage(receiver.Type, imports, proj.ModPkg)
 	result := &types.Receiver{
 		ElemType: constants.ElemReceiver,
 		Name:     receiver.Names[0].Name,
@@ -26,13 +26,14 @@ func ParseReceiver(recv *ast.FieldList, s *types.Struct, imports []*types.Import
 			if result.Pointer {
 				result.TypeName += "*"
 			}
+			result.Type = p.TypeName
 			result.TypeName += p.TypeName
 			result.Struct = s.Clone()
 		} else {
 			if result.Generic {
-				tmp2 := CheckPackage(proj.ModPkg, p.PkgPath)
+				tmp2 := checkPackage(proj.ModPkg, p.PkgPath)
 				if tmp2 == constants.PackageOtherPackage {
-					tmp1 := FindType(p.PkgPath, p.TypeName, proj.BaseDir, proj.ModPkg, proj)
+					tmp1 := findType(p.PkgPath, p.TypeName, proj.BaseDir, proj.ModPkg, proj)
 					genericType := tmp1.Clone()
 					tp := &types.TypeParam{
 						TypeName: p.TypeName,

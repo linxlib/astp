@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-func ParseInterface(list []*ast.Field, imports []*types.Import, proj *types.Project) []*types.Interface {
+func parseInterface(list []*ast.Field, imports []*types.Import, proj *types.Project) []*types.Interface {
 	interaceFields := make([]*types.Interface, 0)
 
 	for i, field := range list {
@@ -18,17 +18,17 @@ func ParseInterface(list []*ast.Field, imports []*types.Import, proj *types.Proj
 		item := &types.Interface{
 			Name:  name,
 			Index: i,
-			Doc:   HandleDoc(field.Doc, name),
+			Doc:   parseDoc(field.Doc, name),
 		}
 		switch spec := field.Type.(type) {
 		case *ast.FuncType:
 			item.ElemType = constants.ElemFunc
-			item.Param = ParseParam(spec.Params, imports, proj)
-			item.Result = ParseResults(spec.Results, imports, proj)
+			item.Param = parseParam(spec.Params, imports, proj)
+			item.Result = parseResults(spec.Results, imports, proj)
 			item.TypeName = name
 		case *ast.BinaryExpr:
 			item.ElemType = constants.ElemConstrain
-			vv := ParseBinaryExpr(spec)
+			vv := parseBinaryExpr(spec)
 			item.TypeName = strings.Join(vv, "|")
 		case *ast.Ident:
 			item.ElemType = constants.ElemConstrain

@@ -6,7 +6,7 @@ import (
 	"go/ast"
 )
 
-func HandleDoc(cg *ast.CommentGroup, selfName string) []*types.Comment {
+func parseDoc(cg *ast.CommentGroup, selfName string) []*types.Comment {
 	var result = make([]*types.Comment, 0)
 	if cg != nil && cg.List != nil {
 		comments := internal.GetComments(cg)

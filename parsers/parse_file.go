@@ -13,18 +13,18 @@ func ParseFile(file string, proj *types.Project) *types.File {
 	name := filepath.Base(file)
 	node, _ := parser.ParseFile(token.NewFileSet(), file, nil, parser.ParseComments)
 
-	p := ParsePackage(node, file, proj)
+	p := parsePackage(node, file, proj)
 
-	doc := HandleDoc(node.Doc, p.Name)
-	i := ParseImport(node)
-	v := ParseVar(node, proj, i)
+	doc := parseDoc(node.Doc, p.Name)
+	i := parseImport(node)
+	v := parseVar(node, proj, i)
 
-	v1 := ParseConst(node, p)
+	v1 := parseConst(node, p)
 
-	//f1 := ParseFunction(node, p, i, proj)
-	//f2 := ParseInterface(node,  i, proj)
+	//f1 := parseFunction(node, p, i, proj)
+	//f2 := parseInterface(node,  i, proj)
 
-	s := ParseStruct(node, p, i, proj)
+	s := parseStruct(node, p, i, proj)
 	f := &types.File{
 		Key:       internal.GetKey(p.Path, name),
 		KeyHash:   internal.GetKeyHash(p.Path, name),
@@ -42,8 +42,8 @@ func ParseFile(file string, proj *types.Project) *types.File {
 	if f.IsMainPackage() {
 		for _, i1 := range f.Import {
 			if strings.HasPrefix(i1.Path, f.Package.Path) {
-				dir := GetPackageDir(i1.Path, proj.BaseDir, proj.ModPkg)
-				files := ParseDir(dir, proj)
+				dir := getPackageDir(i1.Path, proj.BaseDir, proj.ModPkg)
+				files := parseDir(dir, proj)
 				proj.Merge(files)
 
 			}

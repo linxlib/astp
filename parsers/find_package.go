@@ -1,7 +1,6 @@
 package parsers
 
 import (
-	"github.com/linxlib/astp"
 	"github.com/linxlib/astp/constants"
 	"github.com/linxlib/astp/internal"
 	"github.com/linxlib/astp/types"
@@ -9,18 +8,7 @@ import (
 	"strings"
 )
 
-func PackagePath(pkgName string, typeName string) string {
-	if internal.IsInternalType(typeName) {
-		return constants.PackageBuiltin
-	}
-	if pkgName == "" {
-		return constants.PackageSamePackage
-	} else {
-
-		return ""
-	}
-}
-func PackageType(pkgName string, typeName string, modPkg string) string {
+func getPackageType(pkgName string, typeName string, modPkg string) string {
 	if internal.IsInternalType(typeName) {
 		return constants.PackageBuiltin
 	}
@@ -50,8 +38,8 @@ var builtInPackages = map[string]bool{
 	"os":      true,
 }
 
-// CheckPackage 返回某个包是何种类型的包
-func CheckPackage(modPkg string, pkg string) string {
+// checkPackage 返回某个包是何种类型的包
+func checkPackage(modPkg string, pkg string) string {
 	if pkg == constants.PackageSamePackage || (strings.HasPrefix(pkg, modPkg) && pkg == modPkg) {
 		return constants.PackageSamePackage
 	}
@@ -73,21 +61,21 @@ func CheckPackage(modPkg string, pkg string) string {
 	}
 	return constants.PackageThirdPackage
 }
-func FindPackage(expr ast.Expr, imports []*types.Import, modPkg string) []*astp.PkgType {
+func findPackage(expr ast.Expr, imports []*types.Import, modPkg string) []*types.PkgType {
 	if expr == nil {
-		return []*astp.PkgType{}
+		return []*types.PkgType{}
 	}
 
-	result := make([]*astp.PkgType, 0)
+	result := make([]*types.PkgType, 0)
 	switch spec := expr.(type) {
 	case *ast.Ident: //直接一个类型
 
-		return []*astp.PkgType{
+		return []*types.PkgType{
 			{
 				IsGeneric: internal.IsInternalGenericType(spec.Name),
 				PkgPath:   "",
 				TypeName:  spec.Name,
-				PkgType:   PackageType("", spec.Name, modPkg),
+				PkgType:   getPackageType("", spec.Name, modPkg),
 			},
 		}
 	case *ast.SelectorExpr: //带包的类型
@@ -98,10 +86,10 @@ func FindPackage(expr ast.Expr, imports []*types.Import, modPkg string) []*astp.
 		for _, i3 := range imports {
 			if i3.Name == pkgName || i3.Alias == pkgName {
 				pkgPath = i3.Path
-				pkgType = CheckPackage(modPkg, i3.Path)
+				pkgType = checkPackage(modPkg, i3.Path)
 			}
 		}
-		return []*astp.PkgType{
+		return []*types.PkgType{
 			{
 				IsGeneric: false,
 				PkgPath:   pkgPath,
@@ -110,50 +98,50 @@ func FindPackage(expr ast.Expr, imports []*types.Import, modPkg string) []*astp.
 			},
 		}
 	case *ast.StarExpr: //指针
-		aa := FindPackage(spec.X, imports, modPkg)
+		aa := findPackage(spec.X, imports, modPkg)
 		for _, pkgType := range aa {
 			pkgType.IsPtr = true
 		}
 		result = append(result, aa...)
 		return result
 	case *ast.ArrayType: //数组
-		aa := FindPackage(spec.Elt, imports, modPkg)
+		aa := findPackage(spec.Elt, imports, modPkg)
 		for _, pkgType := range aa {
 			pkgType.IsSlice = true
 		}
 		result = append(result, aa...)
 		return result
 	case *ast.Ellipsis: // ...
-		aa := FindPackage(spec.Elt, imports, modPkg)
+		aa := findPackage(spec.Elt, imports, modPkg)
 		for _, pkgType := range aa {
 			pkgType.IsSlice = true
 		}
 		result = append(result, aa...)
 		return result
 	case *ast.MapType:
-		bb := FindPackage(spec.Key, imports, modPkg)
+		bb := findPackage(spec.Key, imports, modPkg)
 		result = append(result, bb...)
-		aa := FindPackage(spec.Value, imports, modPkg)
+		aa := findPackage(spec.Value, imports, modPkg)
 		result = append(result, aa...)
 		return result
 	case *ast.IndexExpr: //泛型
-		bb := FindPackage(spec.X, imports, modPkg) //主类型
+		bb := findPackage(spec.X, imports, modPkg) //主类型
 		for _, pkgType := range bb {
 			pkgType.IsGeneric = true
 		}
 		result = append(result, bb...)
-		aa := FindPackage(spec.Index, imports, modPkg) //泛型类型
+		aa := findPackage(spec.Index, imports, modPkg) //泛型类型
 		result = append(result, aa...)
 
 		return result
 	case *ast.IndexListExpr: //多个泛型参数
-		bb := FindPackage(spec.X, imports, modPkg)
+		bb := findPackage(spec.X, imports, modPkg)
 		for _, pkgType := range bb {
 			pkgType.IsGeneric = true
 		}
 		result = append(result, bb...)
 		for _, indic := range spec.Indices {
-			aa := FindPackage(indic, imports, modPkg)
+			aa := findPackage(indic, imports, modPkg)
 			for _, pkgType := range aa {
 				pkgType.IsGeneric = true
 			}
@@ -162,13 +150,13 @@ func FindPackage(expr ast.Expr, imports []*types.Import, modPkg string) []*astp.
 
 		return result
 	case *ast.BinaryExpr:
-		aa := FindPackage(spec.X, imports, modPkg)
-		bb := FindPackage(spec.Y, imports, modPkg)
+		aa := findPackage(spec.X, imports, modPkg)
+		bb := findPackage(spec.Y, imports, modPkg)
 		result = append(result, aa...)
 		result = append(result, bb...)
 		return result
 	case *ast.InterfaceType:
-		return []*astp.PkgType{
+		return []*types.PkgType{
 			{
 				IsGeneric: false,
 				PkgType:   constants.PackageBuiltin,
@@ -176,7 +164,7 @@ func FindPackage(expr ast.Expr, imports []*types.Import, modPkg string) []*astp.
 			},
 		}
 	case *ast.ChanType:
-		return []*astp.PkgType{
+		return []*types.PkgType{
 			{
 				IsGeneric: false,
 				PkgType:   constants.PackageBuiltin,
@@ -185,7 +173,7 @@ func FindPackage(expr ast.Expr, imports []*types.Import, modPkg string) []*astp.
 		}
 	case *ast.StructType:
 		if expr.(*ast.StructType).Fields == nil {
-			return []*astp.PkgType{
+			return []*types.PkgType{
 				{
 					IsGeneric: false,
 					PkgType:   constants.PackageBuiltin,
@@ -193,7 +181,7 @@ func FindPackage(expr ast.Expr, imports []*types.Import, modPkg string) []*astp.
 				},
 			}
 		} else {
-			return []*astp.PkgType{
+			return []*types.PkgType{
 				{
 					IsGeneric: false,
 					PkgType:   constants.PackageSamePackage,
@@ -203,7 +191,7 @@ func FindPackage(expr ast.Expr, imports []*types.Import, modPkg string) []*astp.
 		}
 
 	default:
-		return []*astp.PkgType{}
+		return []*types.PkgType{}
 	}
 	panic("unreachable")
 }

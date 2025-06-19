@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-func ParseTypeParam(list *ast.FieldList, imports []*types.Import, proj *types.Project) []*types.TypeParam {
+func parseTypeParam(list *ast.FieldList, imports []*types.Import, proj *types.Project) []*types.TypeParam {
 	result := make([]*types.TypeParam, 0)
 	tpIndex := 0
 	for _, field := range list.List {
@@ -20,7 +20,7 @@ func ParseTypeParam(list *ast.FieldList, imports []*types.Import, proj *types.Pr
 			tpIndex++
 			switch spec := field.Type.(type) {
 			case *ast.BinaryExpr:
-				ss := ParseBinaryExpr(spec)
+				ss := parseBinaryExpr(spec)
 				t.TypeInterface = strings.Join(ss, "|")
 				if internal.IsInternalType(ss[0]) {
 					t.Package.Type = constants.PackageBuiltin
@@ -34,11 +34,11 @@ func ParseTypeParam(list *ast.FieldList, imports []*types.Import, proj *types.Pr
 			t.Type = name.Name
 			t.TypeName = name.Name
 			t.ElemType = constants.ElemGeneric
-			ps := FindPackage(field.Type, imports, proj.ModPkg)
+			ps := findPackage(field.Type, imports, proj.ModPkg)
 			for _, p := range ps {
 				if p.PkgType != constants.PackageSamePackage && p.PkgType != constants.PackageBuiltin && p.PkgType != constants.PackageThirdPackage {
 
-					t.Struct = FindType(p.PkgPath, p.TypeName, proj.BaseDir, proj.ModPkg, proj)
+					t.Struct = findType(p.PkgPath, p.TypeName, proj.BaseDir, proj.ModPkg, proj)
 					if t.Struct != nil {
 						t.Package = t.Struct.Package.Clone()
 					}
