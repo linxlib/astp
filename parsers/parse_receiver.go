@@ -10,10 +10,14 @@ import (
 func parseReceiver(recv *ast.FieldList, s *types.Struct, imports []*types.Import, proj *types.Project) *types.Receiver {
 	receiver := recv.List[0]
 	ps := findPackage(receiver.Type, imports, proj.ModPkg)
+	if ps[0].TypeName != s.Type {
+		return nil
+	}
 	result := &types.Receiver{
 		ElemType: constants.ElemReceiver,
 		Name:     receiver.Names[0].Name,
 	}
+
 	idx1 := 0
 	tpString := make([]string, 0)
 	for i, p := range ps {

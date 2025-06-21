@@ -26,6 +26,9 @@ func (r *Receiver) Clone() *Receiver {
 	if r == nil {
 		return nil
 	}
+	if !deepClone {
+		return r
+	}
 	return &Receiver{
 		Name:      r.Name,
 		Pointer:   r.Pointer,

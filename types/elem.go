@@ -1,15 +1,27 @@
 package types
 
-import "github.com/linxlib/astp/constants"
+import (
+	"github.com/linxlib/astp/constants"
+	"slices"
+)
 
 type IElem[T any] interface {
 	String() string
 	Clone() T
 }
 
+var deepClone bool = true
+
+func SetDeepClone(deep bool) {
+	deepClone = deep
+}
+
 func CopySlice[T IElem[T]](src []T) []T {
 	if src == nil {
 		return nil
+	}
+	if !deepClone {
+		return slices.Clone(src)
 	}
 	result := make([]T, 0)
 	for _, t := range src {
@@ -39,6 +51,7 @@ type PkgType struct {
 	IsSlice   bool
 	IsPtr     bool
 	PkgPath   string
+	PkgName   string
 	TypeName  string
 	PkgType   constants.PackageType
 }

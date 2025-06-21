@@ -24,8 +24,10 @@ func parseStruct(af *ast.File, p *types.Package, imports []*types.Import, proj *
 							ElemType: constants.ElemStruct,
 							Index:    index,
 							Package:  p.Clone(),
+							Top:      true,
 							Comment:  parseDoc(spec.Comment, spec.Name.Name),
 						}
+						e.TypeName = e.Package.Name + "." + e.Type
 						e.Key = internal.GetKey(p.Path, e.Name)
 						e.KeyHash = internal.GetKeyHash(p.Path, e.Name)
 						e.Private = internal.IsPrivate(spec.Name.Name)
@@ -43,7 +45,13 @@ func parseStruct(af *ast.File, p *types.Package, imports []*types.Import, proj *
 							{
 								e.Field = parseField(spec1.Fields.List, imports, proj)
 								for _, field := range e.Field {
-									e.TypeParam = append(e.TypeParam, field.TypeParam...)
+									if field.Parent {
+										e.Top = false
+									}
+									if field.TypeParam != nil && len(field.TypeParam) > 0 {
+										e.TypeParam = append(e.TypeParam, field.TypeParam...)
+									}
+
 								}
 								e.Method = parseMethod(af, e, imports, proj)
 

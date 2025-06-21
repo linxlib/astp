@@ -36,6 +36,9 @@ func (f *Field) Clone() *Field {
 	if f == nil {
 		return nil
 	}
+	if !deepClone {
+		return f
+	}
 	return &Field{
 		Index:     f.Index,
 		Name:      f.Name,
@@ -48,12 +51,15 @@ func (f *Field) Clone() *Field {
 		Slice:     f.Slice,
 		TypeParam: CopySlice(f.TypeParam),
 		Tag:       f.Tag,
+		Package:   f.Package.Clone(),
 		Doc:       f.Doc,
 		Comment:   f.Comment,
 		Struct:    f.Struct.Clone(),
 	}
 }
-
+func (f *Field) HasTag() bool {
+	return f.Tag != ""
+}
 func (f *Field) GetTag() reflect.StructTag {
 	return reflect.StructTag(strings.Trim(f.Tag, "`"))
 }

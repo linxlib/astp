@@ -17,6 +17,7 @@ type Struct struct {
 	Type      string             `json:"type"`
 	Private   bool               `json:"private,omitempty"`
 	Generic   bool               `json:"generic,omitempty"`
+	Top       bool               `json:"top,omitempty"`
 	ElemType  constants.ElemType `json:"elem_type"`
 	TypeParam []*TypeParam       `json:"type_param,omitempty"`
 	Field     []*Field           `json:"field,omitempty"`
@@ -32,7 +33,7 @@ type Struct struct {
 }
 
 func (s *Struct) IsEnum() bool {
-	if s==nil {
+	if s == nil {
 		return false
 	}
 	return s.Enum != nil
@@ -41,7 +42,6 @@ func (s *Struct) IsTop() bool {
 
 	b := false
 	for _, field := range s.Field {
-
 		if !field.IsTop() || field.Name == constants.EmptyName {
 			return false
 		}
@@ -70,6 +70,9 @@ func (s *Struct) Clone() *Struct {
 	if s == nil {
 		return nil
 	}
+	if !deepClone {
+		return s
+	}
 	return &Struct{
 		Index:     s.Index,
 		Name:      s.Name,
@@ -84,9 +87,10 @@ func (s *Struct) Clone() *Struct {
 		Doc:       CopySlice(s.Doc),
 		ElemType:  s.ElemType,
 		Enum:      s.Enum.Clone(),
+		Top:       s.Top,
 		Comment:   CopySlice(s.Comment),
-		//Method:    CopySlice(s.Method),
-		Package: s.Package.Clone(),
+		Method:    CopySlice(s.Method),
+		Package:   s.Package.Clone(),
 	}
 }
 
@@ -107,6 +111,7 @@ func (s *Struct) CloneFull() *Struct {
 		Field:     CopySlice(s.Field),
 		Doc:       CopySlice(s.Doc),
 		Enum:      s.Enum.Clone(),
+		Top:       s.Top,
 		Comment:   CopySlice(s.Comment),
 		Method:    CopySlice(s.Method),
 		Package:   s.Package.Clone(),

@@ -20,6 +20,7 @@ func parseField(fields []*ast.Field, imports []*types.Import, proj *types.Projec
 			af1.Private = internal.IsPrivate(af1.Name)
 		} else {
 			af1.Name = constants.EmptyName
+			af1.Parent = true
 			af1.Private = false
 		}
 		af1.Comment = parseDoc(field.Comment, af1.Name)

@@ -20,6 +20,10 @@ func parseBinaryExpr(expr ast.Expr) []string {
 	case *ast.Ident:
 		result = append(result, expr.Name)
 		return result
+	case *ast.SelectorExpr:
+		xx := parseBinaryExpr(expr.X)
+		result = append(result, xx...)
+		return result
 	case *ast.IndexExpr:
 		xx := parseBinaryExpr(expr.X)
 		result = append(result, xx...)

@@ -74,6 +74,7 @@ func findPackage(expr ast.Expr, imports []*types.Import, modPkg string) []*types
 			{
 				IsGeneric: internal.IsInternalGenericType(spec.Name),
 				PkgPath:   "",
+				PkgName:   "",
 				TypeName:  spec.Name,
 				PkgType:   getPackageType("", spec.Name, modPkg),
 			},
@@ -94,14 +95,16 @@ func findPackage(expr ast.Expr, imports []*types.Import, modPkg string) []*types
 				IsGeneric: false,
 				PkgPath:   pkgPath,
 				TypeName:  typeName,
+				PkgName:   pkgName,
 				PkgType:   pkgType,
 			},
 		}
 	case *ast.StarExpr: //指针
 		aa := findPackage(spec.X, imports, modPkg)
-		for _, pkgType := range aa {
-			pkgType.IsPtr = true
-		}
+		aa[0].IsPtr = true
+		//for _, pkgType := range aa {
+		//	pkgType.IsPtr = true
+		//}
 		result = append(result, aa...)
 		return result
 	case *ast.ArrayType: //数组
@@ -132,7 +135,6 @@ func findPackage(expr ast.Expr, imports []*types.Import, modPkg string) []*types
 		result = append(result, bb...)
 		aa := findPackage(spec.Index, imports, modPkg) //泛型类型
 		result = append(result, aa...)
-
 		return result
 	case *ast.IndexListExpr: //多个泛型参数
 		bb := findPackage(spec.X, imports, modPkg)

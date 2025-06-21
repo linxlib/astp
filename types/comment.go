@@ -27,6 +27,9 @@ func (c *Comment) Clone() *Comment {
 	if c == nil {
 		return nil
 	}
+	if !deepClone {
+		return c
+	}
 	return &Comment{
 		Index:      c.Index,
 		Content:    c.Content,
@@ -85,6 +88,7 @@ func OfComment(index int, content string, selfName string) *Comment {
 	}
 }
 func (c *Comment) IsHttpMethod() bool {
+
 	return c.Op && (c.AttrType == constants.AT_ANY ||
 		c.AttrType == constants.AT_POST ||
 		c.AttrType == constants.AT_PUT ||

@@ -12,7 +12,6 @@ import (
 func ParseFile(file string, proj *types.Project) *types.File {
 	name := filepath.Base(file)
 	node, _ := parser.ParseFile(token.NewFileSet(), file, nil, parser.ParseComments)
-
 	p := parsePackage(node, file, proj)
 
 	doc := parseDoc(node.Doc, p.Name)

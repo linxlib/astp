@@ -24,6 +24,9 @@ func (t *TypeParam) Clone() *TypeParam {
 	if t == nil {
 		return nil
 	}
+	if !deepClone {
+		return t
+	}
 	return &TypeParam{
 		Index:         t.Index,
 		Type:          t.Type,
@@ -34,5 +37,24 @@ func (t *TypeParam) Clone() *TypeParam {
 		TypeInterface: t.TypeInterface,
 		Struct:        t.Struct.Clone(),
 		Package:       t.Package.Clone(),
+	}
+}
+func (t *TypeParam) CloneTiny() *TypeParam {
+	if t == nil {
+		return nil
+	}
+	if !deepClone {
+		return t
+	}
+	return &TypeParam{
+		Index:         t.Index,
+		Type:          t.Type,
+		TypeName:      t.TypeName,
+		ElemType:      t.ElemType,
+		Pointer:       t.Pointer,
+		Slice:         t.Slice,
+		TypeInterface: t.TypeInterface,
+		//Struct:        t.Struct.Clone(),
+		Package: t.Package.Clone(),
 	}
 }

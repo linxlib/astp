@@ -30,6 +30,15 @@ func parseTypeParam(list *ast.FieldList, imports []*types.Import, proj *types.Pr
 				if internal.IsInternalType(t.TypeName) {
 					t.Package.Type = constants.PackageBuiltin
 				}
+			case *ast.IndexExpr:
+				ss := parseBinaryExpr(spec)
+				if len(ss) == 2 {
+					t.TypeInterface = ss[1]
+					if internal.IsInternalGenericType(ss[1]) {
+						t.Package.Type = constants.PackageBuiltin
+					}
+				}
+
 			}
 			t.Type = name.Name
 			t.TypeName = name.Name
@@ -37,14 +46,14 @@ func parseTypeParam(list *ast.FieldList, imports []*types.Import, proj *types.Pr
 			ps := findPackage(field.Type, imports, proj.ModPkg)
 			for _, p := range ps {
 				if p.PkgType != constants.PackageSamePackage && p.PkgType != constants.PackageBuiltin && p.PkgType != constants.PackageThirdPackage {
-
 					t.Struct = findType(p.PkgPath, p.TypeName, proj.BaseDir, proj.ModPkg, proj)
 					if t.Struct != nil {
 						t.Package = t.Struct.Package.Clone()
 					}
-
 				} else {
 					t.Package.Type = p.PkgType
+					t.Slice = p.IsSlice
+					t.Pointer = p.IsPtr
 				}
 			}
 

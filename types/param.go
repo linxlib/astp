@@ -30,6 +30,9 @@ func (p *Param) Clone() *Param {
 	if p == nil {
 		return nil
 	}
+	if !deepClone {
+		return p
+	}
 	return &Param{
 		Index:     p.Index,
 		Name:      p.Name,
