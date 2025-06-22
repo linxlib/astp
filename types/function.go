@@ -8,9 +8,9 @@ import (
 var _ IElem[*Function] = (*Function)(nil)
 
 type Function struct {
-	Name      string             `json:"name"`
-	Key       string             `json:"key"`
-	KeyHash   string             `json:"key_hash"`
+	Name string `json:"name"`
+	//Key       string             `json:"key"`
+	//KeyHash   string             `json:"key_hash"`
 	ElemType  constants.ElemType `json:"elem_type,omitempty"`
 	TypeName  string             `json:"type_name"`
 	Doc       []*Comment         `json:"doc,omitempty"`
@@ -50,9 +50,9 @@ func (f *Function) Clone() *Function {
 		return f
 	}
 	return &Function{
-		Name:      f.Name,
-		Key:       f.Key,
-		KeyHash:   f.KeyHash,
+		Name: f.Name,
+		//Key:       f.Key,
+		//KeyHash:   f.KeyHash,
 		ElemType:  f.ElemType,
 		TypeName:  f.TypeName,
 		Doc:       CopySlice(f.Doc),

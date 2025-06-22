@@ -29,8 +29,12 @@ func parseMethod(af *ast.File, s *types.Struct, imports []*types.Import, proj *t
 					TypeName: decl.Name.Name,
 					Private:  internal.IsPrivate(decl.Name.Name),
 				}
-				method.Key = internal.GetKey(s.Package.Path, method.Name)
-				method.KeyHash = internal.GetKeyHash(s.Package.Path, method.Name)
+				// 无需解析私有方法和非 @标记的方法
+				if method.Private || !method.IsOp() {
+					continue
+				}
+				//method.Key = internal.GetKey(s.Package.Path, method.Name)
+				//method.KeyHash = internal.GetKeyHash(s.Package.Path, method.Name)
 				method.Receiver = recv
 
 				method.Param = parseParam(decl.Type.Params, imports, proj)

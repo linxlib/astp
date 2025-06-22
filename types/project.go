@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"github.com/linxlib/astp/constants"
 	"github.com/linxlib/astp/internal"
+	"log/slog"
 	"os"
 	"slices"
+	"strconv"
 	"strings"
 )
 
@@ -47,6 +49,7 @@ func (p *Project) Write(fileName string) error {
 	//for _, file := range p.FileMap {
 	//	p.File = append(p.File, file)
 	//}
+
 	// TODO: 也可以考虑使用gob进行序列化
 	// Serialize project to JSON with indentation
 	jsonData, err := json.MarshalIndent(p, "", "  ")
@@ -56,6 +59,9 @@ func (p *Project) Write(fileName string) error {
 	//if os.Getenv("ASTP_DEBUG") == "true" {
 	//
 	//}
+	jsonFileSize := strconv.FormatFloat(float64(len(jsonData))/1024.0, 'f', 2, 64)
+	slog.Info("origin json file size", "size", jsonFileSize, "unit", "kb")
+	slog.Info("project file count", "count", len(p.FileMap))
 	jsonPath := strings.ReplaceAll(fileName, ".gz", ".json")
 	err = os.WriteFile(jsonPath, jsonData, 0644)
 	if err != nil {
@@ -75,6 +81,9 @@ func (p *Project) Write(fileName string) error {
 
 	// Write compressed data
 	_, err = gz.Write(jsonData)
+	fileInfo, _ := os.Stat(fileName)
+	slog.Info("gzip compressed size", "size", strconv.FormatFloat(float64(fileInfo.Size())/1024.0, 'f', 2, 64), "unit", "kb")
+
 	return err
 }
 func (p *Project) Read(path string) error {
@@ -195,32 +204,14 @@ func (p *Project) AfterParseProj() {
 						if !param.Generic {
 							continue
 						}
-						param.TypeName = ""
 						var tpString []string
-						if param.Slice {
-							param.TypeName = "[]"
-						}
-						if param.Pointer {
-							param.TypeName += "*"
-						}
-						if param.Package.Name == "" {
-							param.TypeName += param.Type
-						} else {
-							param.TypeName += param.Package.Name + "." + param.Type
-						}
+						handleParamTypeName(param)
 
 						for _, typeParam := range newStruct.TypeParam {
 							for idx, t := range param.TypeParam {
 								if t.Type == typeParam.Type {
 									clonedTp := typeParam.CloneTiny()
-									clonedTp.TypeName = ""
-									if t.Slice {
-										clonedTp.TypeName += "[]"
-									}
-									if t.Pointer {
-										clonedTp.TypeName += "*"
-									}
-									clonedTp.TypeName += clonedTp.Type
+									handleTypeParamTypeName(clonedTp, t)
 									pre := param.TypeParam[idx].Clone()
 									clonedTp.Slice = pre.Slice
 									clonedTp.Pointer = pre.Pointer
@@ -315,16 +306,17 @@ func (p *Project) AfterParseProj() {
 							continue
 						}
 						var tpString []string
-						if result.Slice {
-							result.TypeName = "[]"
-						} else {
-							result.TypeName = ""
-						}
-						if result.Pointer {
-							result.TypeName += "*"
-						}
-
-						result.TypeName += result.Package.Name + "." + result.Type
+						handleParamTypeName(result)
+						//if result.Slice {
+						//	result.TypeName = "[]"
+						//} else {
+						//	result.TypeName = ""
+						//}
+						//if result.Pointer {
+						//	result.TypeName += "*"
+						//}
+						//
+						//result.TypeName += result.Package.Name + "." + result.Type
 						//result.TypeParam = make([]*TypeParam, 0)
 
 						//TODO: 处理方法时, 先将结构的
@@ -334,14 +326,15 @@ func (p *Project) AfterParseProj() {
 							for idx, t := range result.TypeParam {
 								if t.Type == typeParam.Type {
 									clonedTp := typeParam.Clone()
-									clonedTp.TypeName = ""
-									if t.Slice {
-										clonedTp.TypeName += "[]"
-									}
-									if t.Pointer {
-										clonedTp.TypeName += "*"
-									}
-									clonedTp.TypeName += clonedTp.Struct.Package.Name + "." + clonedTp.Type
+									handleTypeParamTypeName(clonedTp, t)
+									//clonedTp.TypeName = ""
+									//if t.Slice {
+									//	clonedTp.TypeName += "[]"
+									//}
+									//if t.Pointer {
+									//	clonedTp.TypeName += "*"
+									//}
+									//clonedTp.TypeName += clonedTp.Struct.Package.Name + "." + clonedTp.Type
 									pre := result.TypeParam[idx].Clone()
 									clonedTp.Slice = pre.Slice
 									clonedTp.Pointer = pre.Pointer
@@ -471,6 +464,7 @@ func (p *Project) AfterParseProj() {
 								field.Pointer = tp1.Pointer
 								field.Struct = tp1.Struct.Clone()
 								field.Package = tp1.Package.Clone()
+								//TODO: field 内的struct->field 也要处理
 								break
 							}
 							break
@@ -520,6 +514,22 @@ func (p *Project) AfterParseProj() {
 
 }
 
+func handleTypeParamTypeName(tp *TypeParam, t *TypeParam) {
+	tp.TypeName = ""
+	if t.Slice {
+		tp.TypeName += "[]"
+	}
+	if t.Pointer {
+		tp.TypeName += "*"
+	}
+	if t.Struct != nil && t.Struct.Package.Name != "" {
+		tp.TypeName += t.Struct.Package.Name + "." + tp.Type
+	} else {
+		tp.TypeName += tp.Type
+	}
+
+}
+
 func (p *Project) findStruct(keyHash string) *Struct {
 	for _, f := range p.FileMap {
 		if s := f.FindStruct(keyHash); s != nil {
@@ -531,4 +541,20 @@ func (p *Project) findStruct(keyHash string) *Struct {
 
 func (p *Project) FindStruct(keyHash string) *Struct {
 	return p.findStruct(keyHash)
+}
+
+func handleParamTypeName(param *Param) {
+	param.TypeName = ""
+
+	if param.Slice {
+		param.TypeName = "[]"
+	}
+	if param.Pointer {
+		param.TypeName += "*"
+	}
+	if param.Package.Name == "" {
+		param.TypeName += param.Type
+	} else {
+		param.TypeName += param.Package.Name + "." + param.Type
+	}
 }

@@ -25,8 +25,8 @@ func parseFunction(af *ast.File, p *types.Package, imports []*types.Import, proj
 					Index:   funcIndex,
 					Package: p.Clone(),
 				}
-				method.Key = internal.GetKey(p.Path, method.Name)
-				method.KeyHash = internal.GetKeyHash(p.Path, method.Name)
+				//method.Key = internal.GetKey(p.Path, method.Name)
+				//method.KeyHash = internal.GetKeyHash(p.Path, method.Name)
 				funcIndex++
 
 				if decl.Type.TypeParams != nil {

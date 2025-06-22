@@ -12,11 +12,11 @@ type Field struct {
 	Name      string       `json:"name"`
 	TypeName  string       `json:"type_name"`
 	Type      string       `json:"type"`
-	Parent    bool         `json:"parent"`
-	Private   bool         `json:"private"`
-	Generic   bool         `json:"generic"`
-	Slice     bool         `json:"slice"`
-	Pointer   bool         `json:"pointer"`
+	Parent    bool         `json:"parent,omitempty"`
+	Private   bool         `json:"private,omitempty"`
+	Generic   bool         `json:"generic,omitempty"`
+	Slice     bool         `json:"slice,omitempty"`
+	Pointer   bool         `json:"pointer,omitempty"`
 	TypeParam []*TypeParam `json:"type_param,omitempty"`
 	Tag       string       `json:"tag,omitempty"`
 	Doc       []*Comment   `json:"doc,omitempty"`

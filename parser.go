@@ -6,6 +6,7 @@ import (
 	"github.com/linxlib/astp/internal"
 	"github.com/linxlib/astp/parsers"
 	"github.com/linxlib/astp/types"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -14,9 +15,11 @@ import (
 
 type Parser struct {
 	*types.Project
+	startTime time.Time
 }
 
 func (p *Parser) Parse() error {
+	p.startTime = time.Now()
 	if !internal.FileIsExist("main.go") {
 		return errors.New("main.go not exist")
 	}
@@ -57,8 +60,10 @@ func (p *Parser) Parse() error {
 		Generator:  "github.com/linxlib/astp",
 		Version:    "v0.4",
 	}
+	slog.Info("parsing project...", "mod", modPkg, "go version", modVersion)
 	parsers.ParseFile("main.go", p.Project)
 	p.AfterParseProj()
+	slog.Info("project parsed.", "elapsed", time.Since(p.startTime).String())
 	return nil
 }
 

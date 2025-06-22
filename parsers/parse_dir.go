@@ -137,9 +137,16 @@ func handleStructThisField(filesCopy map[string]*types.File, s *types.Struct) {
 						field.Package = s2.Package.Clone()
 					}
 				}
-
 			}
 		}
-
 	}
+	if s.Field != nil && len(s.Field) > 0 {
+		s.Top = true
+		for _, field := range s.Field {
+			if field.Parent {
+				s.Top = false
+			}
+		}
+	}
+
 }
