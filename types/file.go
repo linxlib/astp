@@ -17,7 +17,7 @@ type File struct {
 }
 
 func (f *File) String() string {
-	return f.Name
+	return f.Package.Name + "." + f.Name
 }
 
 func (f *File) Clone() *File {

@@ -55,3 +55,23 @@ type PkgType struct {
 	TypeName  string
 	PkgType   constants.PackageType
 }
+
+type TypePkgInfo struct {
+	Imports    []*Import
+	ModPkg     string
+	CurrentPkg string
+	Valid      bool
+	Pointer    bool
+	Slice      bool
+	PkgName    string
+	Name       string
+	PkgType    constants.PackageType
+	PkgPath    string
+	Generic    bool
+	FullName   string
+	Children   []*TypePkgInfo
+}
+
+func NewTypePkgInfo(modPkg string, currentPkg string, imports []*Import) *TypePkgInfo {
+	return &TypePkgInfo{Imports: imports, ModPkg: modPkg, CurrentPkg: currentPkg}
+}

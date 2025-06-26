@@ -37,8 +37,8 @@ func parseMethod(af *ast.File, s *types.Struct, imports []*types.Import, proj *t
 				//method.KeyHash = internal.GetKeyHash(s.Package.Path, method.Name)
 				method.Receiver = recv
 
-				method.Param = parseParam(decl.Type.Params, imports, proj)
-				method.Result = parseResults(decl.Type.Results, imports, proj)
+				method.Param = parseParam(decl.Type.Params, recv.TypeParam, imports, proj)
+				method.Result = parseResults(decl.Type.Results, recv.TypeParam, imports, proj)
 
 				methods = append(methods, method)
 				methodIndex++

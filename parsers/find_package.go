@@ -197,3 +197,130 @@ func findPackage(expr ast.Expr, imports []*types.Import, modPkg string) []*types
 	}
 	panic("unreachable")
 }
+
+func findPackageV2(expr ast.Expr, root *types.TypePkgInfo) {
+	if expr == nil {
+		root.Valid = false
+		return
+	}
+	switch spec := expr.(type) {
+	case *ast.Ident: //直接一个类型
+		root.Generic = internal.IsInternalGenericType(spec.Name)
+		root.PkgPath = ""
+		root.PkgName = ""
+		root.Name = spec.Name
+		root.FullName = spec.Name
+		root.Valid = true
+		root.PkgType = getPackageType("", spec.Name, root.ModPkg)
+		return
+	case *ast.SelectorExpr: //带包的类型
+		pkgName := spec.X.(*ast.Ident).Name
+		typeName := spec.Sel.Name
+		pkgPath := ""
+		pkgType := ""
+		for _, i3 := range root.Imports {
+			if i3.Name == pkgName || i3.Alias == pkgName {
+				pkgPath = i3.Path
+				pkgType = checkPackage(root.ModPkg, i3.Path)
+			}
+		}
+		root.Generic = false
+		root.PkgPath = pkgPath
+		root.PkgName = pkgName
+		root.Name = typeName
+		root.Valid = true
+		root.FullName = pkgName + "." + typeName
+		root.PkgType = pkgType
+		return
+	case *ast.StarExpr: //指针
+		findPackageV2(spec.X, root)
+		root.Pointer = true
+		root.FullName = "*" + root.FullName
+		return
+	case *ast.ArrayType: //数组
+		findPackageV2(spec.Elt, root)
+		root.Slice = true
+		root.Valid = true
+		root.FullName = "[]" + root.FullName
+		return
+	case *ast.Ellipsis: // ...
+		findPackageV2(spec.Elt, root)
+		root.Slice = true
+		root.Valid = true
+		root.FullName = "[]" + root.FullName
+		return
+	case *ast.MapType:
+		root.Name = "map"
+		root.PkgType = constants.PackageBuiltin
+		root.PkgPath = ""
+		root.PkgName = ""
+		root.FullName = "map"
+		root.Valid = true
+		child := types.NewTypePkgInfo(root.ModPkg, root.CurrentPkg, root.Imports)
+		child.Imports = root.Imports
+		child.ModPkg = root.ModPkg
+		findPackageV2(spec.Key, child)
+		root.Children = append(root.Children, child)
+		root.FullName += "[" + child.FullName + "]"
+		child1 := types.NewTypePkgInfo(root.ModPkg, root.CurrentPkg, root.Imports)
+		findPackageV2(spec.Value, child1)
+		root.Children = append(root.Children, child1)
+		root.FullName += child1.FullName
+		return
+	case *ast.IndexExpr: //泛型
+		findPackageV2(spec.X, root) //主类型
+		root.Generic = true
+		root.Valid = true
+		child := types.NewTypePkgInfo(root.ModPkg, root.CurrentPkg, root.Imports)
+		findPackageV2(spec.Index, child) //泛型类型
+		child.Generic = true
+
+		root.Children = append(root.Children, child)
+		root.FullName += "[" + child.FullName + "]"
+		return
+	case *ast.IndexListExpr: //多个泛型参数
+		findPackageV2(spec.X, root) //主类型
+		root.Generic = true
+		var tpString []string
+		for _, indic := range spec.Indices {
+			child := types.NewTypePkgInfo(root.ModPkg, root.CurrentPkg, root.Imports)
+			findPackageV2(indic, child)
+			child.Generic = true
+			root.Children = append(root.Children, child)
+			tpString = append(tpString, child.FullName)
+		}
+		root.Valid = true
+		root.FullName += "[" + strings.Join(tpString, ",") + "]"
+		return
+	case *ast.BinaryExpr:
+		root.Valid = false
+		return
+	case *ast.InterfaceType:
+		root.Name = "interface{}"
+		root.Valid = true
+		root.PkgType = constants.PackageBuiltin
+		return
+	case *ast.ChanType:
+		root.Name = "chan"
+		root.Valid = true
+		root.PkgType = constants.PackageBuiltin
+		return
+	case *ast.StructType:
+		if expr.(*ast.StructType).Fields == nil {
+			root.Name = "struct"
+			root.Valid = true
+			root.PkgType = constants.PackageBuiltin
+			return
+		} else {
+			root.Name = "struct"
+			root.Valid = true
+			root.PkgType = constants.PackageSamePackage
+			root.PkgPath = root.CurrentPkg
+
+			return
+		}
+
+	default:
+		return
+	}
+}

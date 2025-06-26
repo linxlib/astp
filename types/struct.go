@@ -66,6 +66,8 @@ func (s *Struct) IsTop() bool {
 func (s *Struct) String() string {
 	return s.Key
 }
+
+// Clone returns a deep copy of the struct without the methods
 func (s *Struct) Clone() *Struct {
 	if s == nil {
 		return nil
@@ -89,11 +91,12 @@ func (s *Struct) Clone() *Struct {
 		Enum:      s.Enum.Clone(),
 		Top:       s.Top,
 		Comment:   CopySlice(s.Comment),
-		Method:    CopySlice(s.Method),
-		Package:   s.Package.Clone(),
+		//Method:    CopySlice(s.Method),
+		Package: s.Package.Clone(),
 	}
 }
 
+// CloneFull returns a deep copy of the struct with the methods
 func (s *Struct) CloneFull() *Struct {
 	if s == nil {
 		return nil

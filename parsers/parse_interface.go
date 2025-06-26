@@ -23,8 +23,8 @@ func parseInterface(list []*ast.Field, imports []*types.Import, proj *types.Proj
 		switch spec := field.Type.(type) {
 		case *ast.FuncType:
 			item.ElemType = constants.ElemFunc
-			item.Param = parseParam(spec.Params, imports, proj)
-			item.Result = parseResults(spec.Results, imports, proj)
+			item.Param = parseParam(spec.Params, []*types.TypeParam{}, imports, proj)
+			item.Result = parseResults(spec.Results, []*types.TypeParam{}, imports, proj)
 			item.TypeName = name
 		case *ast.BinaryExpr:
 			item.ElemType = constants.ElemConstrain

@@ -1,0 +1,8 @@
+package tests
+
+import (
+	_ "github.com/linxlib/astp/parsers"
+	aaa "github.com/linxlib/astp/types"
+	"github.com/linxlib/astp/constants"
+)
+

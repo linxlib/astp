@@ -4,10 +4,9 @@ import (
 	"github.com/linxlib/astp/constants"
 	"github.com/linxlib/astp/types"
 	"go/ast"
-	"strings"
 )
 
-func parseResults(params *ast.FieldList, imports []*types.Import, proj *types.Project) []*types.Param {
+func parseResults(params *ast.FieldList, tps []*types.TypeParam, imports []*types.Import, proj *types.Project) []*types.Param {
 	if params == nil {
 		return nil
 	}
@@ -24,91 +23,53 @@ func parseResults(params *ast.FieldList, imports []*types.Import, proj *types.Pr
 					Package:  new(types.Package),
 				}
 
-				ps := findPackage(param.Type, imports, proj.ModPkg)
-				tpString := make([]string, 0)
-				for i, p := range ps {
-					//tmp := checkPackage(proj.ModPkg, p.PkgPath)
-					if i == 0 {
-						//主参数的类型 (不带* [] 包名)
-						par.Type = p.TypeName
-						// 主参数 放到Struct
-						par.Struct = findType(p.PkgPath, p.TypeName, proj.BaseDir, proj.ModPkg, proj)
-						if par.Struct != nil {
-							par.Package = par.Struct.Package.Clone()
+				info := types.NewTypePkgInfo(proj.ModPkg, "", imports)
+				findPackageV2(param.Type, info)
+				if info.Valid {
+					if info.Valid {
+						par.Slice = info.Slice
+						par.Pointer = info.Pointer
+						par.Generic = info.Generic
+						par.TypeName = info.FullName
+						if info.PkgType == constants.PackageOtherPackage {
+							par.Struct = findType(info.PkgPath, info.Name, proj.BaseDir, proj.ModPkg, proj).Clone()
+							if par.Struct != nil {
+								par.Package = par.Struct.Package.Clone()
+							}
+							par.Package.Type = info.PkgType
 						} else {
-							par.Package.Type = p.PkgType
-							par.Package.Path = p.PkgPath
-							par.Package.Name = p.PkgName
+							par.Package.Type = info.PkgType
+							par.Package.Path = info.PkgPath
+							par.Package.Name = info.PkgName
 						}
-
-						par.Slice = p.IsSlice
-						if par.Slice {
-							par.TypeName += "[]"
+						for _, tp := range tps {
+							if par.Type == tp.Type {
+								par.TypeParam = append(par.TypeParam, tp.CloneTiny())
+							}
 						}
-
-						par.Pointer = p.IsPtr
-						if par.Pointer {
-							par.TypeName += "*"
-						}
-						par.Generic = p.IsGeneric
 						if par.Generic {
-							if p.PkgPath == "" {
-								// 不带包名 则为this
-								par.TypeName += p.TypeName
-							} else {
-								par.TypeName += p.PkgName + "." + p.TypeName
+							for idx, child := range info.Children {
+								tp := &types.TypeParam{
+									Type:          child.Name,
+									TypeName:      child.FullName,
+									Index:         idx,
+									ElemType:      constants.ElemGeneric,
+									Pointer:       child.Pointer,
+									Slice:         child.Slice,
+									TypeInterface: "",
+									Struct:        nil,
+									Package:       new(types.Package),
+								}
+								tp.Package.Type = child.PkgType
+								tp.Package.Path = child.PkgPath
+								tp.Package.Name = child.PkgName
+								tp.Struct = findType(child.PkgPath, child.Name, proj.BaseDir, proj.ModPkg, proj).Clone()
+
+								par.TypeParam = append(par.TypeParam, tp)
 							}
-						} else {
-							par.TypeName += p.TypeName
-						}
-					} else {
-						// 泛型也可能为 []Type 这样的形式
-						if par.Generic { //一般到了这里 必为true
-							tp := &types.TypeParam{
-								Type:          p.TypeName,
-								TypeName:      "",
-								Index:         i - 1, //表示在这个结构中的第几个
-								ElemType:      constants.ElemGeneric,
-								Pointer:       p.IsPtr,
-								Slice:         false,
-								TypeInterface: p.TypeName,
-								Package:       new(types.Package),
-							}
-							if par.TypeParam == nil {
-								par.TypeParam = make([]*types.TypeParam, 0)
-							}
-							tp.Pointer = p.IsPtr
-							tp.Slice = p.IsSlice
-							if tp.Slice {
-								tp.TypeName += "[]"
-							}
-							if tp.Pointer {
-								tp.TypeName += "*"
-							}
-							if p.PkgPath == "" { //this 包
-								tp.TypeName += p.TypeName
-							} else {
-								tp.TypeName += p.PkgName + "." + p.TypeName
-							}
-							// 暂时先不考虑 *[]*Type 这样的复杂情况, 仅考虑 []*Type
-							tp.Struct = findType(p.PkgPath, p.TypeName, proj.BaseDir, proj.ModPkg, proj)
-							if tp.Struct != nil {
-								tp.Package = par.Struct.Package.Clone()
-							} else {
-								tp.Package.Type = p.PkgType
-								tp.Package.Path = p.PkgPath
-								tp.Package.Name = p.PkgName
-							}
-							//tp.TypeName += p.TypeName
-							tpString = append(tpString, tp.TypeName)
-							par.TypeParam = append(par.TypeParam, tp)
 
 						}
-
 					}
-				}
-				if len(tpString) > 0 {
-					par.TypeName += "[" + strings.Join(tpString, ",") + "]"
 				}
 				pars = append(pars, par)
 				pIndex++
@@ -121,114 +82,107 @@ func parseResults(params *ast.FieldList, imports []*types.Import, proj *types.Pr
 				ElemType: constants.ElemResult,
 				Package:  new(types.Package),
 			}
-			ps := findPackage(param.Type, imports, proj.ModPkg)
 
-			// 泛型类型处理
-			// 这里ps的len>1
-			// eg. [0] 为BasePageResp [1] 为 models.User
-			tpString := make([]string, 0)
-			for i, p := range ps {
-				//tmp := checkPackage(proj.ModPkg, p.PkgPath)
-				if i == 0 {
-					//主参数的类型 (不带* [] 包名)
-					par.Type = p.TypeName
-					// 主参数 放到Struct
-					par.Struct = findType(p.PkgPath, p.TypeName, proj.BaseDir, proj.ModPkg, proj)
-					if par.Struct != nil {
-						par.Package = par.Struct.Package.Clone()
+			info := types.NewTypePkgInfo(proj.ModPkg, "", imports)
+			findPackageV2(param.Type, info)
+			if info.Valid {
+				if info.Valid {
+					par.Slice = info.Slice
+					par.Pointer = info.Pointer
+					par.Generic = info.Generic
+					par.Type = info.Name
+					par.TypeName = info.FullName
+					if info.PkgType == constants.PackageOtherPackage {
+						par.Struct = findType(info.PkgPath, info.Name, proj.BaseDir, proj.ModPkg, proj).Clone()
+						if par.Struct != nil {
+							par.Package = par.Struct.Package.Clone()
+						}
+						par.Package.Type = info.PkgType
 					} else {
-						par.Package.Type = p.PkgType
-						par.Package.Path = p.PkgPath
-						par.Package.Name = p.PkgName
+						par.Package.Type = info.PkgType
+						par.Package.Path = info.PkgPath
+						par.Package.Name = info.PkgName
+					}
+					if !par.Generic { // *E
+						for _, tp := range tps {
+							if par.Type == tp.Type {
+								par.TypeParam = append(par.TypeParam, tp.CloneTiny())
+							}
+						}
 					}
 
-					par.Slice = p.IsSlice
-					if par.Slice {
-						par.TypeName += "[]"
-					}
-
-					par.Pointer = p.IsPtr
-					if par.Pointer {
-						par.TypeName += "*"
-					}
-					par.Generic = p.IsGeneric
 					if par.Generic {
-						if p.PkgPath == "" {
-							// 不带包名 则为this
-							par.TypeName += p.TypeName
-						} else {
-							par.TypeName += p.PkgName + "." + p.TypeName
+						for _, child := range info.Children {
+							tp := &types.TypeParam{
+								Type:          child.Name,
+								TypeName:      child.FullName,
+								ElemType:      constants.ElemGeneric,
+								Pointer:       child.Pointer,
+								Slice:         child.Slice,
+								TypeInterface: "",
+								Struct:        nil,
+								Package:       new(types.Package),
+							}
+							tp.Package.Type = child.PkgType
+							tp.Package.Path = child.PkgPath
+							tp.Package.Name = child.PkgName
+							tp.Struct = findType(child.PkgPath, child.Name, proj.BaseDir, proj.ModPkg, proj).Clone()
+
+							//TODO: children 可能还有children
+							if child.Children != nil {
+								for _, child1 := range child.Children {
+									tp1 := &types.TypeParam{
+										Type:          child1.Name,
+										TypeName:      child1.FullName,
+										ElemType:      constants.ElemGeneric,
+										Pointer:       child1.Pointer,
+										Slice:         child1.Slice,
+										TypeInterface: "",
+										Struct:        nil,
+										Package:       new(types.Package),
+									}
+									tp1.Package.Type = child1.PkgType
+									tp1.Package.Path = child1.PkgPath
+									tp1.Package.Name = child1.PkgName
+									tp1.Struct = findType(child1.PkgPath, child1.Name, proj.BaseDir, proj.ModPkg, proj).Clone()
+
+									if tp.Struct != nil {
+										hasTp1 := false
+										for _, tp2 := range tps {
+											if tp2.Type == child1.Name {
+												hasTp1 = true
+												tp1.Index = tp2.Index
+												break
+											}
+										}
+										if hasTp1 {
+											tp.Struct.TypeParam = make([]*types.TypeParam, 0)
+											tp.Struct.TypeParam = append(tp.Struct.TypeParam, tp1)
+										}
+									}
+								}
+								tp.ElemType = constants.ElemStruct
+							} else {
+								var hasTp = false
+								for _, tp1 := range tps {
+									if tp1.Type == child.Name {
+										hasTp = true
+										tp.Index = tp1.Index
+										break
+									}
+
+								}
+								if hasTp {
+									//tp.Index = -1
+								}
+							}
+							par.TypeParam = append(par.TypeParam, tp)
 						}
-					} else {
-						par.TypeName += p.TypeName
-					}
-					if p.PkgType == constants.PackageBuiltin && par.Generic {
-						tp := &types.TypeParam{
-							Type:          par.Type,
-							TypeName:      par.TypeName,
-							Index:         0, //表示在这个结构中的第几个
-							ElemType:      constants.ElemGeneric,
-							Pointer:       par.Pointer,
-							Slice:         par.Slice,
-							TypeInterface: par.TypeName,
-							Package:       par.Package.Clone(),
-							Struct:        par.Struct.Clone(),
-						}
-						if par.TypeParam == nil {
-							par.TypeParam = make([]*types.TypeParam, 0)
-						}
-						par.TypeParam = append(par.TypeParam, tp)
 
 					}
-				} else {
-					// 泛型也可能为 []Type 这样的形式
-					if par.Generic { //一般到了这里 必为true
-						tp := &types.TypeParam{
-							Type:          p.TypeName,
-							TypeName:      "",
-							Index:         i - 1, //表示在这个结构中的第几个
-							ElemType:      constants.ElemGeneric,
-							Pointer:       p.IsPtr,
-							Slice:         false,
-							TypeInterface: p.TypeName,
-							Package:       new(types.Package),
-						}
-						if par.TypeParam == nil {
-							par.TypeParam = make([]*types.TypeParam, 0)
-						}
-						tp.Pointer = p.IsPtr
-						tp.Slice = p.IsSlice
-						if tp.Slice {
-							tp.TypeName += "[]"
-						}
-						if tp.Pointer {
-							tp.TypeName += "*"
-						}
-						if p.PkgPath == "" { //this 包
-							tp.TypeName += p.TypeName
-						} else {
-							tp.TypeName += p.PkgName + "." + p.TypeName
-						}
-						// 暂时先不考虑 *[]*Type 这样的复杂情况, 仅考虑 []*Type
-						tp.Struct = findType(p.PkgPath, p.TypeName, proj.BaseDir, proj.ModPkg, proj)
-						if tp.Struct != nil {
-							tp.Package = par.Struct.Package.Clone()
-						} else {
-							tp.Package.Type = p.PkgType
-							tp.Package.Path = p.PkgPath
-							tp.Package.Name = p.PkgName
-						}
-						//tp.TypeName += p.TypeName
-						tpString = append(tpString, tp.TypeName)
-						par.TypeParam = append(par.TypeParam, tp)
-
-					}
-
 				}
 			}
-			if len(tpString) > 0 {
-				par.TypeName += "[" + strings.Join(tpString, ",") + "]"
-			}
+
 			pars = append(pars, par)
 			pIndex++
 		}

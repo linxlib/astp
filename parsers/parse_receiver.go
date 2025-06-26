@@ -4,73 +4,49 @@ import (
 	"github.com/linxlib/astp/constants"
 	"github.com/linxlib/astp/types"
 	"go/ast"
-	"strings"
 )
 
 func parseReceiver(recv *ast.FieldList, s *types.Struct, imports []*types.Import, proj *types.Project) *types.Receiver {
 	receiver := recv.List[0]
-	ps := findPackage(receiver.Type, imports, proj.ModPkg)
-	if ps[0].TypeName != s.Type {
+
+	info := types.NewTypePkgInfo(proj.ModPkg, s.Package.Path, imports)
+	findPackageV2(receiver.Type, info)
+	if info.Name != s.Type {
 		return nil
 	}
+
 	result := &types.Receiver{
 		ElemType: constants.ElemReceiver,
 		Name:     receiver.Names[0].Name,
 	}
-
-	idx1 := 0
-	tpString := make([]string, 0)
-	for i, p := range ps {
-		if i == 0 {
-			result.Generic = p.IsGeneric
-			if result.Generic {
-				result.TypeParam = make([]*types.TypeParam, 0)
+	result.Struct = s.Clone()
+	result.ElemType = constants.ElemReceiver
+	result.TypeName = info.FullName
+	result.Type = info.Name
+	result.Generic = info.Generic
+	if result.Generic {
+		for idx, child := range info.Children {
+			tp := &types.TypeParam{
+				Type:          child.Name,
+				TypeName:      child.FullName,
+				Index:         idx,
+				ElemType:      constants.ElemGeneric,
+				Pointer:       child.Pointer,
+				Slice:         child.Slice,
+				TypeInterface: "",
+				Struct:        nil,
+				Package:       new(types.Package),
 			}
-			result.Pointer = p.IsPtr
-			if result.Pointer {
-				result.TypeName += "*"
-			}
-			result.Type = p.TypeName
-			result.TypeName += p.TypeName
-			result.Struct = s.Clone()
-		} else {
-			if result.Generic {
-				tmp2 := checkPackage(proj.ModPkg, p.PkgPath)
-				if tmp2 == constants.PackageOtherPackage {
-					tmp1 := findType(p.PkgPath, p.TypeName, proj.BaseDir, proj.ModPkg, proj)
-					genericType := tmp1.Clone()
-					tp := &types.TypeParam{
-						TypeName: p.TypeName,
-						ElemType: constants.ElemGeneric,
-						Index:    idx1,
-						Type:     p.TypeName,
-						Struct:   genericType,
-					}
-					tpString = append(tpString, p.PkgPath+"."+p.TypeName)
-					result.TypeParam = append(result.TypeParam, tp)
-				} else {
-					result.TypeParam = append(result.TypeParam, &types.TypeParam{
-						Type:     p.TypeName,
-						Index:    idx1,
-						TypeName: p.TypeName,
-						Package: &types.Package{
-							Type: p.PkgType,
-							Path: p.PkgPath,
-						},
-					})
-					if p.PkgPath == "" {
-						tpString = append(tpString, p.TypeName)
-					} else {
-						tpString = append(tpString, p.PkgPath+"."+p.TypeName)
-					}
-
-				}
-				idx1++
-			}
+			tp.Package.Type = child.PkgType
+			tp.Package.Path = child.PkgPath
+			tp.Package.Name = child.PkgName
+			tp.Struct = findType(child.PkgPath, child.Name, proj.BaseDir, proj.ModPkg, proj).Clone()
+			result.TypeParam = append(result.TypeParam, tp)
 		}
+
 	}
-	if len(tpString) > 0 {
-		result.TypeName += "[" + strings.Join(tpString, ",") + "]"
-	}
+
+	//ps := parseTypeParamV2(recv, imports, proj)
+	//result.TypeParam = append(result.TypeParam, ps...)
 	return result
 }

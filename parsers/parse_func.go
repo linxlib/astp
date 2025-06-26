@@ -31,10 +31,10 @@ func parseFunction(af *ast.File, p *types.Package, imports []*types.Import, proj
 
 				if decl.Type.TypeParams != nil {
 					method.Generic = true
-					method.TypeParam = parseTypeParam(decl.Type.TypeParams, imports, proj)
+					method.TypeParam = parseTypeParamV2(decl.Type.TypeParams, imports, proj)
 				}
-				method.Param = parseParam(decl.Type.Params, imports, proj)
-				method.Result = parseResults(decl.Type.Results, imports, proj)
+				method.Param = parseParam(decl.Type.Params, []*types.TypeParam{}, imports, proj)
+				method.Result = parseResults(decl.Type.Results, []*types.TypeParam{}, imports, proj)
 				methods = append(methods, method)
 			}
 

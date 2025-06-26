@@ -23,7 +23,6 @@ type Project struct {
 	Generator  string           `json:"generator,omitempty"`
 	Version    string           `json:"version,omitempty"`
 	FileMap    map[string]*File `json:"file,omitempty"`
-	//File       []*File          `json:"file,omitempty"`
 }
 
 func (p *Project) AddFile(f *File) {
@@ -42,15 +41,6 @@ func (p *Project) Merge(files map[string]*File) {
 }
 
 func (p *Project) Write(fileName string) error {
-	//// 暂定: 不存储 FileMap
-	//// 后续考虑fw框架是否需要在文件中进行快速查询
-	//// 类似 Struct 也类似, 如果需要快速查询, 则全部改造为map 而不是slice
-	//p.File = make([]*File, 0)
-	//for _, file := range p.FileMap {
-	//	p.File = append(p.File, file)
-	//}
-
-	// TODO: 也可以考虑使用gob进行序列化
 	// Serialize project to JSON with indentation
 	jsonData, err := json.MarshalIndent(p, "", "  ")
 	if err != nil {
@@ -154,360 +144,173 @@ func (p *Project) handleEnum() {
 }
 
 func (p *Project) AfterParseProj() {
+	// 处理枚举合并(将常量合并到对应结构中, 仅合并同文件)
 	p.handleEnum()
-	// 由于解析顺序问题, 前期解析时, 对于类型就在当前文件的情况, 标记为了 Package.Type = "this"
-	// 类似这样的结构, 需要在全部文件都解析后, 再进行处理
 	for _, file := range p.FileMap {
 		for _, s := range file.Struct {
+			p.handleAnonymousField(s)
+
 			// 处理结构的字段
-			var delField *Field = nil
-			for _, field := range s.Field {
-				if field.Struct == nil || !field.Parent {
-					continue
-				}
-
-				//slog.Info("[field's struct is this]", field.Struct.Name, field.Struct.Package.Path+"."+field.Struct.TypeName)
-				//查找上级结构
-				keyHash := internal.GetKeyHash(field.Struct.Package.Path, field.Struct.Type)
-				newStruct := p.findStruct(keyHash)
-
-				//newStruct.TypeParam = CopySlice(s.TypeParam)
-				// 只要是隐式引用(没有Name),  均将上级结构的字段直接加入到本结构体 (json包就是这么处理的)
-				if field.Name == constants.EmptyName {
-					delField = field
-					// 将上级结构的导出字段 加入到本结构体
-					for _, f := range newStruct.Field {
-						if !f.Private {
-							s.Field = append(s.Field, f.Clone())
-						}
-					}
-				} else {
-					field.Struct = newStruct.Clone()
-				}
-
-				// 上级结构的注释中op=true的注释拷贝过来 其他注释无用
-				for _, comment := range newStruct.Comment {
-					if !comment.Op {
-						continue
-					}
-					s.Comment = append(s.Comment, comment.Clone())
-				}
-				//将上级有标记为 @XXX 的方法加入到本结构体
-				// 其他类型的方法没必要pull到本级
-				// 这是为了实现Crud而做的处理
-				for _, function := range newStruct.Method {
-					if function.Private || !function.IsOp() {
-						continue
-					}
-					cloned := function.Clone()
-					for _, param := range cloned.Param {
-						if !param.Generic {
-							continue
-						}
-						var tpString []string
-						handleParamTypeName(param)
-
-						for _, typeParam := range newStruct.TypeParam {
-							for idx, t := range param.TypeParam {
-								if t.Type == typeParam.Type {
-									clonedTp := typeParam.CloneTiny()
-									handleTypeParamTypeName(clonedTp, t)
-									pre := param.TypeParam[idx].Clone()
-									clonedTp.Slice = pre.Slice
-									clonedTp.Pointer = pre.Pointer
-									param.TypeParam[idx] = clonedTp
-
-									tpString = append(tpString, clonedTp.TypeName)
-									//result.TypeParam[idx].Index = idx
-								}
-							}
-						}
-						// 将本级的泛型类型覆盖到参数这边
-						for _, typeParam := range s.TypeParam {
-
-							for idx, tp := range param.TypeParam {
-								if tp.Index == typeParam.Index {
-									pre := param.TypeParam[idx].Clone()
-									cl := typeParam.Clone()
-									cl.Slice = pre.Slice
-									cl.Pointer = pre.Pointer
-									param.TypeParam[idx] = cl
-
-									param.Struct = typeParam.Struct.Clone()
-									param.Package = typeParam.Struct.Package.Clone()
-									param.Slice = pre.Slice
-									param.Pointer = pre.Pointer
-									continue
-								}
-							}
-						}
-						if len(tpString) > 0 {
-							param.TypeName += "[" + strings.Join(tpString, ",") + "]"
-						}
-						if param.Struct != nil {
-							for _, f := range param.Struct.Field {
-								if f.Generic {
-									for idx, typeParam := range param.Struct.TypeParam {
-										if typeParam.Type == f.Type {
-											for idx2, t := range param.TypeParam {
-												if idx == idx2 {
-													pre := f.Clone()
-													f.Struct = t.Struct.Clone()
-													f.Package = t.Struct.Package.Clone()
-													f.Slice = pre.Slice
-													f.Pointer = pre.Pointer
-												}
-											}
-
-										}
-
-									}
-								} else {
-									// 这里的field.Package 为 nil, 具体是哪里问题
-									//fmt.Printf("字段为非泛型类型: %s.%s 并且为结构 需要专门处理\n", f.Package.Name, f.Name)
-									if f.Package.Type == constants.PackageSamePackage {
-										keyHash1 := internal.GetKeyHash(newStruct.Package.Path, f.Type)
-										newStruct1 := p.findStruct(keyHash1)
-										if newStruct1 != nil {
-											f.Struct = newStruct1.Clone()
-											f.Package = newStruct1.Package.Clone()
-
-										}
-									}
-
-								}
-							}
-						}
-
-						//param.TypeParam = make([]*TypeParam, 0)
-						//for _, typeParam := range newStruct.TypeParam {
-						//	if param.Type == typeParam.Type {
-						//		param.TypeParam = append(param.TypeParam, typeParam.Clone())
-						//	}
-						//}
-						//for _, typeParam := range s.TypeParam {
-						//	for idx, tp := range param.TypeParam {
-						//		if tp.Index == typeParam.Index {
-						//			param.TypeParam[idx] = typeParam.Clone()
-						//			param.Struct = typeParam.Struct.Clone()
-						//			param.Slice = typeParam.Slice
-						//			param.Pointer = typeParam.Pointer
-						//			param.Type = param.Struct.Name
-						//			continue
-						//		}
-						//	}
-						//}
-						//param.TypeName += "[" + strings.Join(tpString, ",") + "]"
-
-					}
-
-					for _, result := range cloned.Result {
-						if !result.Generic {
-							continue
-						}
-						var tpString []string
-						handleParamTypeName(result)
-						//if result.Slice {
-						//	result.TypeName = "[]"
-						//} else {
-						//	result.TypeName = ""
-						//}
-						//if result.Pointer {
-						//	result.TypeName += "*"
-						//}
-						//
-						//result.TypeName += result.Package.Name + "." + result.Type
-						//result.TypeParam = make([]*TypeParam, 0)
-
-						//TODO: 处理方法时, 先将结构的
-
-						// 先将上级的泛型类型覆盖到参数这边来(根据泛型参数索引)
-						for _, typeParam := range newStruct.TypeParam {
-							for idx, t := range result.TypeParam {
-								if t.Type == typeParam.Type {
-									clonedTp := typeParam.Clone()
-									handleTypeParamTypeName(clonedTp, t)
-									//clonedTp.TypeName = ""
-									//if t.Slice {
-									//	clonedTp.TypeName += "[]"
-									//}
-									//if t.Pointer {
-									//	clonedTp.TypeName += "*"
-									//}
-									//clonedTp.TypeName += clonedTp.Struct.Package.Name + "." + clonedTp.Type
-									pre := result.TypeParam[idx].Clone()
-									clonedTp.Slice = pre.Slice
-									clonedTp.Pointer = pre.Pointer
-									result.TypeParam[idx] = clonedTp
-
-									tpString = append(tpString, clonedTp.TypeName)
-									//result.TypeParam[idx].Index = idx
-								}
-							}
-						}
-						// 将本级的泛型类型覆盖到参数这边
-						for _, typeParam := range s.TypeParam {
-
-							for idx, tp := range result.TypeParam {
-								if tp.Index == typeParam.Index {
-									//pre := result.TypeParam[idx].Clone()
-									//
-									//result.TypeParam[idx] = typeParam.Clone()
-									//result.TypeParam[idx].Slice = pre.Slice
-									//result.TypeParam[idx].Pointer = pre.Pointer
-
-									pre := result.TypeParam[idx].Clone()
-									cl := typeParam.Clone()
-									cl.Slice = pre.Slice
-									cl.Pointer = pre.Pointer
-									result.TypeParam[idx] = cl
-
-									//result.Struct = typeParam.Struct.Clone()
-									//result.Package = typeParam.Struct.Package.Clone()
-									//result.Slice = pre.Slice
-									//result.Pointer = pre.Pointer
-									continue
-								}
-							}
-						}
-						if len(tpString) > 0 {
-							result.TypeName += "[" + strings.Join(tpString, ",") + "]"
-						}
-
-						// 处理参数结构中的字段
-						if result.Struct != nil {
-							for _, f := range result.Struct.Field {
-								if f.Generic {
-									for idx, typeParam := range result.Struct.TypeParam {
-										if typeParam.Type == f.Type {
-
-											for idx2, t := range result.TypeParam {
-												if idx == idx2 {
-													f.Struct = t.Struct.Clone()
-													f.Package = t.Struct.Package.Clone()
-													f.Slice = t.Slice
-													f.Pointer = t.Pointer
-												}
-											}
-
-										}
-
-									}
-								} else {
-									// 这里的field.Package 为 nil, 具体是哪里问题
-									//fmt.Printf("字段为非泛型类型: %s.%s 并且为结构 需要专门处理\n", f.Package.Name, f.Name)
-									if f.Package.Type == constants.PackageSamePackage {
-										keyHash1 := internal.GetKeyHash(newStruct.Package.Path, f.Type)
-										newStruct1 := p.findStruct(keyHash1)
-										if newStruct1 != nil {
-											f.Struct = newStruct1.Clone()
-											f.Package = newStruct1.Package.Clone()
-
-										}
-									}
-
-								}
-							}
-						}
-
-					}
-					cloned.Receiver = nil
-					if s.Method != nil && len(s.Method) > 0 {
-						cloned.Receiver = s.Method[0].Receiver.Clone()
-					}
-
-					s.Method = append(s.Method, cloned)
-					slices.SortFunc(s.Method, func(a, b *Function) int {
-						return a.Index - b.Index
-					})
-
-				}
-
-			}
-			// 删除该字段
-			if delField != nil {
-				s.Field = slices.DeleteFunc(s.Field, func(i *Field) bool {
-					return i.Name == delField.Name && i.Type == delField.Type && i.TypeName == delField.TypeName
-				})
-			}
-
-			// 处理方法
-			for _, method := range s.Method {
-				if !method.IsOp() {
-					continue
-				}
-				for _, param := range method.Param {
-					if !param.Generic {
-						continue
-					}
-					if param.Struct == nil {
-						continue
-					}
-					for _, field := range param.Struct.Field {
-						if !field.Generic {
-							continue
-						}
-						for _, tp := range param.Struct.TypeParam {
-							if tp.Type != field.Type {
-								continue
-							}
-							field.Parent = true
-							for _, tp1 := range param.TypeParam {
-								if tp1.Index != tp.Index {
-									continue
-								}
-								if field.TypeParam == nil {
-									field.TypeParam = make([]*TypeParam, 0)
-								}
-								field.TypeParam = append(field.TypeParam, tp1.Clone())
-								field.Slice = tp1.Slice
-								field.Pointer = tp1.Pointer
-								field.Struct = tp1.Struct.Clone()
-								field.Package = tp1.Package.Clone()
-								//TODO: field 内的struct->field 也要处理
-								break
-							}
-							break
-						}
-
-					}
-
-				}
-				for _, param := range method.Result {
-					if !param.Generic {
-						continue
-					}
-					if param.Struct == nil {
-						continue
-					}
-					for _, field := range param.Struct.Field {
-						if !field.Generic {
-							continue
-						}
-						for _, tp := range param.Struct.TypeParam {
-							if tp.Type != field.Type {
-								continue
-							}
-							field.Parent = true
-							for _, tp1 := range param.TypeParam {
-								if tp1.Index != tp.Index {
-									continue
-								}
-								if field.TypeParam == nil {
-									field.TypeParam = make([]*TypeParam, 0)
-								}
-								//field.TypeParam = append(field.TypeParam, tp1.Clone())
-								field.Struct = tp1.Struct.Clone()
-								field.Package = tp1.Package.Clone()
-								break
-							}
-							break
-						}
-
-					}
-				}
-
-			}
+			//var delField *Field = nil
+			//for _, field := range s.Field {
+			//	if field.Struct == nil || !field.Parent {
+			//		continue
+			//	}
+			//
+			//	//查找上级结构
+			//	keyHash := internal.GetKeyHash(field.Struct.Package.Path, field.Struct.Type)
+			//	newStruct := p.findStruct(keyHash)
+			//
+			//	// 只要是隐式引用(没有Name),  均将上级结构的字段直接加入到本结构体 (json包就是这么处理的)
+			//	if field.Name == constants.EmptyName {
+			//		delField = field
+			//		// 将上级结构的导出字段 加入到本结构体
+			//		for _, f := range newStruct.Field {
+			//			if !f.Private {
+			//				s.Field = append(s.Field, f.Clone())
+			//			}
+			//		}
+			//	} else {
+			//		field.Struct = newStruct.Clone()
+			//	}
+			//
+			//	// 上级结构的注释中op=true的注释拷贝过来 其他注释无用
+			//	for _, comment := range newStruct.Comment {
+			//		if !comment.Op {
+			//			continue
+			//		}
+			//		s.Comment = append(s.Comment, comment.Clone())
+			//	}
+			//
+			//	//将上级有标记为 @XXX 的方法加入到本结构体
+			//	// 其他类型的方法没必要pull到本级
+			//	// 这是为了实现Crud而做的处理
+			//	for _, function := range newStruct.Method {
+			//		if function.Private || !function.IsOp() {
+			//			continue
+			//		}
+			//		cloned := function.Clone()
+			//		for _, param := range cloned.Param {
+			//			if !param.Generic {
+			//				continue
+			//			}
+			//			//handleParamTypeName(param)
+			//			//TODO: 如果是 param *E, 目前无法判断这个E是第几个泛型参数
+			//
+			//			// 将上级泛型类型对应的泛型参数 复制到当前参数
+			//			for _, typeParam := range newStruct.TypeParam {
+			//				if param.TypeParam != nil {
+			//					for idx, t := range param.TypeParam {
+			//						if t.Index == typeParam.Index {
+			//							clonedTp := typeParam.CloneTiny()
+			//							handleTypeParamTypeName(clonedTp, t)
+			//							pre := param.TypeParam[idx].Clone()
+			//							clonedTp.Slice = pre.Slice
+			//							clonedTp.Pointer = pre.Pointer
+			//							param.TypeParam[idx] = clonedTp
+			//
+			//						}
+			//					}
+			//				} else {
+			//					clonedTp := typeParam.CloneTiny()
+			//					param.TypeParam = append(param.TypeParam, clonedTp)
+			//				}
+			//
+			//			}
+			//			// 将本级结构的泛型类型覆盖到当前参数(这里为实际泛型的类型)
+			//			for _, typeParam := range s.TypeParam {
+			//				for idx, tp := range param.TypeParam {
+			//					if tp.Index == typeParam.Index {
+			//						pre := param.TypeParam[idx].Clone()
+			//						cl := typeParam.Clone()
+			//						cl.Slice = pre.Slice
+			//						cl.Pointer = pre.Pointer
+			//						param.TypeParam[idx] = cl
+			//
+			//						param.Struct = typeParam.Struct.Clone()
+			//						param.Package = typeParam.Struct.Package.Clone()
+			//						param.Slice = pre.Slice
+			//						param.Pointer = pre.Pointer
+			//						continue
+			//					}
+			//				}
+			//			}
+			//			// 处理参数中字段为泛型的情况, 逐级向下传递
+			//			if param.Struct != nil {
+			//				handleGenericField(param.Struct, param.TypeParam, newStruct, p)
+			//			}
+			//
+			//		}
+			//
+			//		for _, result := range cloned.Result {
+			//			if !result.Generic {
+			//				continue
+			//			}
+			//
+			//			// 将本级的泛型类型覆盖到返回值这边
+			//			for _, typeParam := range s.TypeParam {
+			//				for idx, tp := range result.TypeParam {
+			//					if tp.Struct != nil {
+			//						for idx2, tp2 := range tp.Struct.TypeParam {
+			//							if tp2.Index == typeParam.Index {
+			//								pre := tp2.Clone()
+			//								cl := typeParam.Clone()
+			//								cl.Slice = pre.Slice
+			//								cl.Pointer = pre.Pointer
+			//								tp.Struct.TypeParam[idx2] = cl
+			//							}
+			//						}
+			//						for _, f := range tp.Struct.Field {
+			//							if f.Generic {
+			//								for idx4, tp3 := range f.TypeParam {
+			//									if tp3.Index == typeParam.Index {
+			//										pre := tp3.Clone()
+			//										cl := typeParam.Clone()
+			//										cl.Slice = pre.Slice
+			//										cl.Pointer = pre.Pointer
+			//										f.TypeParam[idx4] = cl
+			//									}
+			//								}
+			//							}
+			//						}
+			//
+			//					} else {
+			//						if tp.Index == typeParam.Index {
+			//							// 某个泛型为 [] 或者 * 时, 由当前返回值的原泛型数据决定
+			//							pre := tp.Clone()
+			//							cl := typeParam.Clone()
+			//							cl.Slice = pre.Slice
+			//							cl.Pointer = pre.Pointer
+			//							result.TypeParam[idx] = cl
+			//
+			//							continue
+			//						}
+			//					}
+			//
+			//				}
+			//			}
+			//
+			//			// 处理返回值结构中的字段
+			//			if result.Struct != nil {
+			//				handleGenericField(result.Struct, result.TypeParam, newStruct, p)
+			//			}
+			//
+			//		}
+			//		// 替换拷贝过来的方法的接收器为当前类型
+			//		cloned.Receiver = nil
+			//		if s.Method != nil && len(s.Method) > 0 {
+			//			cloned.Receiver = s.Method[0].Receiver.Clone()
+			//		}
+			//
+			//	}
+			//
+			//}
+			//// 删除该字段
+			//if delField != nil {
+			//	s.Field = slices.DeleteFunc(s.Field, func(i *Field) bool {
+			//		return i.Name == delField.Name && i.Type == delField.Type && i.TypeName == delField.TypeName
+			//	})
+			//}
 
 		}
 	}
@@ -543,6 +346,90 @@ func (p *Project) FindStruct(keyHash string) *Struct {
 	return p.findStruct(keyHash)
 }
 
+func (p *Project) handleStructCurrentMethod(s *Struct) {
+	for _, method := range s.Method {
+		if !method.IsOp() {
+			continue
+		}
+		for _, param := range method.Param {
+			if !param.Generic {
+				continue
+			}
+			if param.Struct == nil {
+				continue
+			}
+			for _, field := range param.Struct.Field {
+				if !field.Generic {
+					continue
+				}
+				for _, tp := range param.Struct.TypeParam {
+					if tp.Type != field.Type {
+						continue
+					}
+					field.Parent = true
+					for _, tp1 := range param.TypeParam {
+						if tp1.Index != tp.Index {
+							continue
+						}
+						if field.TypeParam == nil {
+							field.TypeParam = make([]*TypeParam, 0)
+						}
+						field.TypeParam = append(field.TypeParam, tp1.Clone())
+						field.Slice = tp1.Slice
+						field.Pointer = tp1.Pointer
+						field.Struct = tp1.Struct.Clone()
+						field.Package = tp1.Package.Clone()
+						//TODO: field 内的struct->field 也要处理
+						break
+					}
+					break
+				}
+
+			}
+
+		}
+
+		for _, param := range method.Result {
+			// 泛型返回值
+			if !param.Generic {
+				continue
+			}
+			//有结构
+			if param.Struct == nil {
+				continue
+			}
+			for _, field := range param.Struct.Field {
+				// 泛型字段
+				if !field.Generic {
+					continue
+				}
+				for _, tp := range param.Struct.TypeParam {
+					if tp.Type != field.Type {
+						continue
+					}
+					field.Parent = true
+					for _, tp1 := range param.TypeParam {
+						if tp1.Index != tp.Index {
+							continue
+						}
+						if field.TypeParam == nil {
+							field.TypeParam = make([]*TypeParam, 0)
+						}
+						field.Struct = tp1.Struct.Clone()
+						field.Package = tp1.Package.Clone()
+
+						handleGenericField(field.Struct, param.TypeParam, param.Struct, p)
+						break
+					}
+					break
+				}
+
+			}
+		}
+
+	}
+}
+
 func handleParamTypeName(param *Param) {
 	param.TypeName = ""
 
@@ -556,5 +443,300 @@ func handleParamTypeName(param *Param) {
 		param.TypeName += param.Type
 	} else {
 		param.TypeName += param.Package.Name + "." + param.Type
+	}
+}
+
+func handleNonGenericField(f *Field, parentStruct *Struct, p *Project) {
+	if f.Package.Type == constants.PackageSamePackage {
+		keyHash1 := internal.GetKeyHash(parentStruct.Package.Path, f.Type)
+		newStruct1 := p.findStruct(keyHash1)
+		if newStruct1 != nil {
+			f.Struct = newStruct1.Clone()
+			f.Package = newStruct1.Package.Clone()
+
+		}
+	}
+}
+
+func handleGenericField(s *Struct, tps []*TypeParam, parentStruct *Struct, p *Project) {
+	s.VisitFields(func(f *Field) bool {
+		return f.Generic
+	}, func(f *Field) {
+		for idx, typeParam := range s.TypeParam {
+			if typeParam.Type == f.Type {
+				for idx2, t := range tps {
+					if idx == idx2 {
+						//pre := f.Clone()
+						newStruct := t.Struct.Clone()
+
+						f.Struct = newStruct
+						if f.Struct != nil {
+							f.Package = t.Struct.Package.Clone()
+						}
+
+						f.Slice = t.Slice
+						f.Pointer = t.Pointer
+						//TODO: 如果这一级的f.Struct的字段列表中也有泛型类型, 则需要进一步处理. 为兼容多级, 需要递归处理
+
+						handleGenericField2(f, parentStruct, p)
+					}
+				}
+
+			}
+
+		}
+	})
+	s.VisitFields(func(f *Field) bool {
+		return !f.Generic
+	}, func(f *Field) {
+		handleNonGenericField(f, parentStruct, p)
+	})
+}
+func handleGenericField2(s *Field, parentStruct *Struct, p *Project) {
+	s.Struct.VisitFields(func(f *Field) bool {
+		return f.Generic
+	}, func(f *Field) {
+		if len(s.TypeParam) == len(f.TypeParam) {
+			for idx, typeParam := range s.TypeParam {
+				//pre := f.TypeParam[idx].Clone()
+				newTp := typeParam.Clone()
+				f.TypeParam[idx] = newTp
+				newStruct := newTp.Struct.Clone()
+				if newStruct != nil {
+					f.Package = newStruct.Package.Clone()
+					f.Struct = newStruct
+				}
+				f.Slice = s.Slice
+				f.Pointer = s.Pointer
+				handleGenericField2(f, parentStruct, p)
+			}
+		}
+
+	})
+	s.Struct.VisitFields(func(f *Field) bool {
+		return !f.Generic
+	}, func(f *Field) {
+		handleNonGenericField(f, parentStruct, p)
+	})
+}
+
+// handleParentParam 处理泛型参数/返回值
+// currentStruct: 当前结构
+// param: 参数
+// tps: 类型参数(匿名字段对应的结构)
+func (p *Project) handleParentParam(currentStruct *Struct, param *Param, tps []*TypeParam) {
+	if !param.Generic {
+		return
+	}
+	// 循环处理
+	// 1. 参数本身的TypeParam eg. param *E / (*E, error) / []*E / ([]*E, error)
+	// 2. 参数结构的TypeParam和其字段 eg. *resp.Resp[*E] / *resp.Resp[[]*E]
+	// 3. 多层嵌套型 eg. *resp.Resp[PageResult[[]*E]]
+
+	// 递归查找, 更新泛型的Index(代表对应 currentStruct 泛型中的第几个)
+	p.handleParamGeneric(param.Struct, param.TypeParam, tps)
+
+	p.handleParamRealGeneric(param.Struct, currentStruct.TypeParam)
+}
+
+func (p *Project) handleParamRealGeneric(s *Struct, tps []*TypeParam) {
+	slog.Info("handleParamRealGeneric")
+	if s == nil {
+		return
+	}
+	for _, param := range s.TypeParam {
+		if param.Index == -1 {
+			for _, field := range s.Field {
+				slog.Info("handleParamRealGeneric", "field", field.Name)
+				has := false
+				for idx2, typeParam := range field.TypeParam {
+					if typeParam.Index != -1 {
+						has = true
+						for _, tp := range tps {
+							if tp.Index == typeParam.Index {
+								field.TypeParam[idx2] = tp.Clone()
+								field.Struct = tp.Struct.Clone()
+								if field.Pointer {
+									tmp := field.Struct.TypeName
+									tmp = "*" + tmp
+									if field.Slice {
+										tmp = "[]" + tmp
+									}
+									field.TypeName = tmp
+								} else {
+									tmp := field.Struct.TypeName
+									if field.Slice {
+										tmp = "[]" + tmp
+									}
+									field.TypeName = tmp
+								}
+								//TODO: 最外层的param的TypeName需要更新
+								break
+							}
+						}
+					}
+				}
+				if !has {
+					p.handleParamRealGeneric(field.Struct, tps)
+				}
+
+			}
+		}
+	}
+}
+
+// handleGeneric 处理泛型(递归)
+func (p *Project) handleParamGeneric(s *Struct, tps []*TypeParam, thatTps []*TypeParam) {
+	if s == nil {
+		return
+	}
+	slog.Info("handleGeneric", "struct", s.Name)
+
+	for idx, typeParam := range s.TypeParam {
+		for idx1, t := range tps {
+			if idx == idx1 {
+				clonedTypeParam := typeParam.Clone()
+				for _, field := range s.Field {
+					if field.Generic {
+						field.Struct = t.Struct.Clone()
+						if field.Struct != nil {
+							clonedTypeParam.Index = -1
+							clonedTypeParam.TypeInterface = "nonce"
+						}
+						field.TypeParam = make([]*TypeParam, 0)
+						field.TypeParam = append(field.TypeParam, clonedTypeParam)
+						field.Slice = clonedTypeParam.Slice
+						field.Pointer = clonedTypeParam.Pointer
+						if field.Slice {
+							tmp := field.TypeName
+							if field.Pointer {
+								tmp = "*" + tmp
+							}
+							field.TypeName = "[]" + tmp
+						}
+
+						if field.Struct != nil {
+							//field.Struct.TypeParam = make([]*TypeParam, 0)
+							//field.Struct.TypeParam = append(field.Struct.TypeParam, t.Clone())
+							p.handleParamGeneric(field.Struct, field.TypeParam, thatTps)
+						}
+						cloneT := t.Clone()
+						cloneT.Index = -1
+						s.TypeParam[idx] = cloneT
+					}
+
+				}
+			}
+		}
+		//for _, t := range thatTps {
+		//	if t.Index == typeParam.Index {
+		//		clonedTypeParam := t.Clone()
+		//		for _, field := range s.Field {
+		//			for _, tp := range field.TypeParam {
+		//				if tp.Index == clonedTypeParam.Index {
+		//					field.Struct = t.Struct.Clone()
+		//					field.TypeParam = make([]*TypeParam, 0)
+		//					field.TypeParam = append(field.TypeParam, t.Clone())
+		//					s.TypeParam[idx] = clonedTypeParam
+		//				}
+		//			}
+		//
+		//		}
+		//
+		//	}
+		//}
+	}
+	slog.Info("handleGeneric", "typeParam", s.TypeParam)
+
+	//for _, tp := range s.TypeParam {
+	//	for _, thisTp := range thisTps {
+	//		if thisTp.Type == tp.Type {
+	//			tp.Index = thisTp.Index
+	//		}
+	//	}
+	//}
+
+}
+
+func (p *Project) handleParentMethod(currentStruct *Struct, parentMethod *Function, tps []*TypeParam) {
+	// 处理receiver
+	// 替换拷贝过来的方法的接收器为当前类型
+	parentMethod.Receiver = nil
+	if currentStruct.Method != nil && len(currentStruct.Method) > 0 {
+		parentMethod.Receiver = currentStruct.Method[0].Receiver.Clone()
+	}
+
+	//处理 param
+	for _, param := range parentMethod.Param {
+		p.handleParentParam(currentStruct, param, tps)
+	}
+	//处理result
+	for _, param := range parentMethod.Result {
+		p.handleParentParam(currentStruct, param, tps)
+	}
+}
+
+func (p *Project) handleAnonymousField(currentStruct *Struct) {
+	var delField *Field = nil
+	for _, field := range currentStruct.Field {
+		if field.Struct == nil || !field.Parent {
+			continue
+		}
+		//先查找字段对应的结构
+		keyHash := internal.GetKeyHash(field.Struct.Package.Path, field.Struct.Type)
+		fieldStruct := p.findStruct(keyHash).CloneFull()
+
+		// 只要是隐式引用(没有Name),  均将上级结构的字段直接加入到本结构体 (json包就是这么处理的)
+		if field.Name == constants.EmptyName {
+			delField = field
+			currentStruct.TypeParam = CopySlice(field.TypeParam)
+			// 由于字段是隐式引用 (没有Name), 将该结构的字段添加到当前结构的字段列表中
+			for _, f := range fieldStruct.Field {
+				if !f.Private {
+					currentStruct.Field = append(currentStruct.Field, f.Clone())
+				}
+			}
+		} else {
+			// 对于已经经过this处理的结构, 这里更新一下.
+			// 字段对应的结构中可能包含this, 而this的处理在 parse_dir.go:22 进行过
+			// 这里针对的一般是 other 类型
+			field.Struct = fieldStruct
+		}
+
+		// 上级结构的注释中op=true的注释拷贝过来 其他注释无用
+		// 即 类似 @XXX 这样的注解
+		for _, comment := range fieldStruct.Comment {
+			if !comment.Op {
+				continue
+			}
+			currentStruct.Comment = append(currentStruct.Comment, comment.Clone())
+		}
+
+		// 提取上级结构的泛型类型定义(这里一般还是T,E这样的'Type')
+		// 用于后面receiver param result的处理
+		tps := CopySlice(fieldStruct.TypeParam)
+
+		for _, function := range fieldStruct.Method {
+			// 跳过私有方法和非操作方法
+			if function.Private || !function.IsOp() {
+				continue
+			}
+			cloned := function.Clone()
+			slog.Info("handleParentMethod", "method", cloned.Name)
+			p.handleParentMethod(currentStruct, cloned, tps)
+			currentStruct.Method = append(currentStruct.Method, cloned)
+		}
+		// 简单排序一下
+		slices.SortFunc(currentStruct.Method, func(a, b *Function) int {
+			return a.Index - b.Index
+		})
+
+	}
+	// 对于隐式引用(没有Name)的字段, 删除它, 对后面没什么用了
+	if delField != nil {
+		// 也可以不删除, 而是将字段相关设置为非公开字段等
+		currentStruct.Field = slices.DeleteFunc(currentStruct.Field, func(i *Field) bool {
+			return i.Name == delField.Name && i.Type == delField.Type && i.TypeName == delField.TypeName
+		})
 	}
 }
