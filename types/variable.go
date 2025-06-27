@@ -29,9 +29,6 @@ func (v *Variable) Clone() *Variable {
 	if v == nil {
 		return nil
 	}
-	if !deepClone {
-		return v
-	}
 	return &Variable{
 		Name:     v.Name,
 		ElemType: v.ElemType,

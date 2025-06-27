@@ -24,9 +24,6 @@ func (i *Interface) Clone() *Interface {
 	if i == nil {
 		return nil
 	}
-	if !deepClone {
-		return i
-	}
 	return &Interface{
 		Index:     i.Index,
 		Name:      i.Name,

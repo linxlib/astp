@@ -2,7 +2,6 @@ package types
 
 import (
 	"github.com/linxlib/astp/constants"
-	"slices"
 )
 
 type IElem[T any] interface {
@@ -10,25 +9,12 @@ type IElem[T any] interface {
 	Clone() T
 }
 
-var deepClone bool = true
-
-func SetDeepClone(deep bool) {
-	deepClone = deep
-}
-
 func CopySlice[T IElem[T]](src []T) []T {
 	if src == nil {
 		return nil
 	}
-	if !deepClone {
-		return slices.Clone(src)
-	}
 	result := make([]T, 0)
 	for _, t := range src {
-		//if t == nil {
-		//	continue
-		//}
-
 		result = append(result, t.Clone())
 	}
 	return result

@@ -8,7 +8,7 @@ import (
 	"go/ast"
 )
 
-func parseField(fields []*ast.Field, structTypeParams []*types.TypeParam, imports []*types.Import, proj *types.Project, belongToStruct *types.Struct) []*types.Field {
+func parseField(fields []*ast.Field, structTypeParams []*types.TypeParam, imports []*types.Import, proj *types.Project) []*types.Field {
 	var sf = make([]*types.Field, 0)
 	for idx, field := range fields {
 		af1 := new(types.Field)

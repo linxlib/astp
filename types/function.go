@@ -46,9 +46,6 @@ func (f *Function) Clone() *Function {
 	if f == nil {
 		return nil
 	}
-	if !deepClone {
-		return f
-	}
 	return &Function{
 		Name: f.Name,
 		//Key:       f.Key,

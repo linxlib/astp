@@ -107,7 +107,6 @@ func handleStructThisMethod(filesCopy map[string]*types.File, s *types.Struct) {
 					}
 				}
 				// 还要处理result的
-				//fmt.Println("test")
 				if result.Struct != nil {
 					for _, field := range result.Struct.Field {
 						if field.Generic {

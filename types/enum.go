@@ -55,9 +55,6 @@ func (e *EnumItem) Clone() *EnumItem {
 	if e == nil {
 		return nil
 	}
-	if !deepClone {
-		return e
-	}
 	return &EnumItem{
 		Index:   e.Index,
 		Name:    e.Name,

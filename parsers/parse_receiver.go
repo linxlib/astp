@@ -51,8 +51,5 @@ func parseReceiver(recv *ast.FieldList, s *types.Struct, imports []*types.Import
 		}
 
 	}
-
-	//ps := parseTypeParamV2(recv, imports, proj)
-	//result.TypeParam = append(result.TypeParam, ps...)
 	return result
 }

@@ -20,9 +20,6 @@ func (p *Package) Clone() *Package {
 	if p == nil {
 		return nil
 	}
-	if !deepClone {
-		return p
-	}
 	return &Package{
 		FileName: p.FileName,
 		FilePath: p.FilePath,

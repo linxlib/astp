@@ -14,7 +14,7 @@ func ParseFile(file string, proj *types.Project) *types.File {
 	node, _ := parser.ParseFile(token.NewFileSet(), file, nil, parser.ParseComments)
 	p := parsePackage(node, file, proj)
 
-	doc := HandleDocs(node.Comments, p.Name)
+	doc := parseDocs(node.Comments, p.Name)
 	i := parseImport(node)
 	v := parseVar(node, proj, i)
 
@@ -48,6 +48,5 @@ func ParseFile(file string, proj *types.Project) *types.File {
 			}
 		}
 	}
-
 	return f
 }

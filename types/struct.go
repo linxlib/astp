@@ -72,9 +72,6 @@ func (s *Struct) Clone() *Struct {
 	if s == nil {
 		return nil
 	}
-	if !deepClone {
-		return s
-	}
 	return &Struct{
 		Index:     s.Index,
 		Name:      s.Name,

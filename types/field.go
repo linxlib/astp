@@ -36,9 +36,6 @@ func (f *Field) Clone() *Field {
 	if f == nil {
 		return nil
 	}
-	if !deepClone {
-		return f
-	}
 	return &Field{
 		Index:     f.Index,
 		Name:      f.Name,

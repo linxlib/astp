@@ -45,14 +45,6 @@ func parseVar(af *ast.File, proj *types.Project, imports []*types.Import) []*typ
 									vv.Package.Name = info.PkgName
 								}
 							}
-
-							//ps := findPackage(spec.Type, imports, proj.ModPkg)
-							//for _, p := range ps {
-							//	if p.PkgType != constants.PackageSamePackage && p.PkgType != constants.PackageBuiltin && p.PkgType != constants.PackageThirdPackage {
-							//		vv.Struct = findType(p.PkgPath, p.TypeName, proj.BaseDir, proj.ModPkg, proj)
-							//		vv.TypeName = vv.Struct.Name
-							//	}
-							//}
 							result = append(result, vv)
 						}
 					}

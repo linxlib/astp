@@ -61,142 +61,143 @@ func checkPackage(modPkg string, pkg string) string {
 	}
 	return constants.PackageThirdPackage
 }
-func findPackage(expr ast.Expr, imports []*types.Import, modPkg string) []*types.PkgType {
-	if expr == nil {
-		return []*types.PkgType{}
-	}
 
-	result := make([]*types.PkgType, 0)
-	switch spec := expr.(type) {
-	case *ast.Ident: //直接一个类型
-
-		return []*types.PkgType{
-			{
-				IsGeneric: internal.IsInternalGenericType(spec.Name),
-				PkgPath:   "",
-				PkgName:   "",
-				TypeName:  spec.Name,
-				PkgType:   getPackageType("", spec.Name, modPkg),
-			},
-		}
-	case *ast.SelectorExpr: //带包的类型
-		pkgName := spec.X.(*ast.Ident).Name
-		typeName := spec.Sel.Name
-		pkgPath := ""
-		pkgType := ""
-		for _, i3 := range imports {
-			if i3.Name == pkgName || i3.Alias == pkgName {
-				pkgPath = i3.Path
-				pkgType = checkPackage(modPkg, i3.Path)
-			}
-		}
-		return []*types.PkgType{
-			{
-				IsGeneric: false,
-				PkgPath:   pkgPath,
-				TypeName:  typeName,
-				PkgName:   pkgName,
-				PkgType:   pkgType,
-			},
-		}
-	case *ast.StarExpr: //指针
-		aa := findPackage(spec.X, imports, modPkg)
-		aa[0].IsPtr = true
-		//for _, pkgType := range aa {
-		//	pkgType.IsPtr = true
-		//}
-		result = append(result, aa...)
-		return result
-	case *ast.ArrayType: //数组
-		aa := findPackage(spec.Elt, imports, modPkg)
-		for _, pkgType := range aa {
-			pkgType.IsSlice = true
-		}
-		result = append(result, aa...)
-		return result
-	case *ast.Ellipsis: // ...
-		aa := findPackage(spec.Elt, imports, modPkg)
-		for _, pkgType := range aa {
-			pkgType.IsSlice = true
-		}
-		result = append(result, aa...)
-		return result
-	case *ast.MapType:
-		bb := findPackage(spec.Key, imports, modPkg)
-		result = append(result, bb...)
-		aa := findPackage(spec.Value, imports, modPkg)
-		result = append(result, aa...)
-		return result
-	case *ast.IndexExpr: //泛型
-		bb := findPackage(spec.X, imports, modPkg) //主类型
-		for _, pkgType := range bb {
-			pkgType.IsGeneric = true
-		}
-		result = append(result, bb...)
-		aa := findPackage(spec.Index, imports, modPkg) //泛型类型
-		result = append(result, aa...)
-		return result
-	case *ast.IndexListExpr: //多个泛型参数
-		bb := findPackage(spec.X, imports, modPkg)
-		for _, pkgType := range bb {
-			pkgType.IsGeneric = true
-		}
-		result = append(result, bb...)
-		for _, indic := range spec.Indices {
-			aa := findPackage(indic, imports, modPkg)
-			for _, pkgType := range aa {
-				pkgType.IsGeneric = true
-			}
-			result = append(result, aa...)
-		}
-
-		return result
-	case *ast.BinaryExpr:
-		aa := findPackage(spec.X, imports, modPkg)
-		bb := findPackage(spec.Y, imports, modPkg)
-		result = append(result, aa...)
-		result = append(result, bb...)
-		return result
-	case *ast.InterfaceType:
-		return []*types.PkgType{
-			{
-				IsGeneric: false,
-				PkgType:   constants.PackageBuiltin,
-				TypeName:  "interface{}",
-			},
-		}
-	case *ast.ChanType:
-		return []*types.PkgType{
-			{
-				IsGeneric: false,
-				PkgType:   constants.PackageBuiltin,
-				TypeName:  "chan",
-			},
-		}
-	case *ast.StructType:
-		if expr.(*ast.StructType).Fields == nil {
-			return []*types.PkgType{
-				{
-					IsGeneric: false,
-					PkgType:   constants.PackageBuiltin,
-					TypeName:  "struct",
-				},
-			}
-		} else {
-			return []*types.PkgType{
-				{
-					IsGeneric: false,
-					PkgType:   constants.PackageSamePackage,
-					TypeName:  "struct",
-				},
-			}
-		}
-
-	default:
-		return []*types.PkgType{}
-	}
-	panic("unreachable")
-}
+//func findPackage(expr ast.Expr, imports []*types.Import, modPkg string) []*types.PkgType {
+//	if expr == nil {
+//		return []*types.PkgType{}
+//	}
+//
+//	result := make([]*types.PkgType, 0)
+//	switch spec := expr.(type) {
+//	case *ast.Ident: //直接一个类型
+//
+//		return []*types.PkgType{
+//			{
+//				IsGeneric: internal.IsInternalGenericType(spec.Name),
+//				PkgPath:   "",
+//				PkgName:   "",
+//				TypeName:  spec.Name,
+//				PkgType:   getPackageType("", spec.Name, modPkg),
+//			},
+//		}
+//	case *ast.SelectorExpr: //带包的类型
+//		pkgName := spec.X.(*ast.Ident).Name
+//		typeName := spec.Sel.Name
+//		pkgPath := ""
+//		pkgType := ""
+//		for _, i3 := range imports {
+//			if i3.Name == pkgName || i3.Alias == pkgName {
+//				pkgPath = i3.Path
+//				pkgType = checkPackage(modPkg, i3.Path)
+//			}
+//		}
+//		return []*types.PkgType{
+//			{
+//				IsGeneric: false,
+//				PkgPath:   pkgPath,
+//				TypeName:  typeName,
+//				PkgName:   pkgName,
+//				PkgType:   pkgType,
+//			},
+//		}
+//	case *ast.StarExpr: //指针
+//		aa := findPackage(spec.X, imports, modPkg)
+//		aa[0].IsPtr = true
+//		//for _, pkgType := range aa {
+//		//	pkgType.IsPtr = true
+//		//}
+//		result = append(result, aa...)
+//		return result
+//	case *ast.ArrayType: //数组
+//		aa := findPackage(spec.Elt, imports, modPkg)
+//		for _, pkgType := range aa {
+//			pkgType.IsSlice = true
+//		}
+//		result = append(result, aa...)
+//		return result
+//	case *ast.Ellipsis: // ...
+//		aa := findPackage(spec.Elt, imports, modPkg)
+//		for _, pkgType := range aa {
+//			pkgType.IsSlice = true
+//		}
+//		result = append(result, aa...)
+//		return result
+//	case *ast.MapType:
+//		bb := findPackage(spec.Key, imports, modPkg)
+//		result = append(result, bb...)
+//		aa := findPackage(spec.Value, imports, modPkg)
+//		result = append(result, aa...)
+//		return result
+//	case *ast.IndexExpr: //泛型
+//		bb := findPackage(spec.X, imports, modPkg) //主类型
+//		for _, pkgType := range bb {
+//			pkgType.IsGeneric = true
+//		}
+//		result = append(result, bb...)
+//		aa := findPackage(spec.Index, imports, modPkg) //泛型类型
+//		result = append(result, aa...)
+//		return result
+//	case *ast.IndexListExpr: //多个泛型参数
+//		bb := findPackage(spec.X, imports, modPkg)
+//		for _, pkgType := range bb {
+//			pkgType.IsGeneric = true
+//		}
+//		result = append(result, bb...)
+//		for _, indic := range spec.Indices {
+//			aa := findPackage(indic, imports, modPkg)
+//			for _, pkgType := range aa {
+//				pkgType.IsGeneric = true
+//			}
+//			result = append(result, aa...)
+//		}
+//
+//		return result
+//	case *ast.BinaryExpr:
+//		aa := findPackage(spec.X, imports, modPkg)
+//		bb := findPackage(spec.Y, imports, modPkg)
+//		result = append(result, aa...)
+//		result = append(result, bb...)
+//		return result
+//	case *ast.InterfaceType:
+//		return []*types.PkgType{
+//			{
+//				IsGeneric: false,
+//				PkgType:   constants.PackageBuiltin,
+//				TypeName:  "interface{}",
+//			},
+//		}
+//	case *ast.ChanType:
+//		return []*types.PkgType{
+//			{
+//				IsGeneric: false,
+//				PkgType:   constants.PackageBuiltin,
+//				TypeName:  "chan",
+//			},
+//		}
+//	case *ast.StructType:
+//		if expr.(*ast.StructType).Fields == nil {
+//			return []*types.PkgType{
+//				{
+//					IsGeneric: false,
+//					PkgType:   constants.PackageBuiltin,
+//					TypeName:  "struct",
+//				},
+//			}
+//		} else {
+//			return []*types.PkgType{
+//				{
+//					IsGeneric: false,
+//					PkgType:   constants.PackageSamePackage,
+//					TypeName:  "struct",
+//				},
+//			}
+//		}
+//
+//	default:
+//		return []*types.PkgType{}
+//	}
+//	panic("unreachable")
+//}
 
 func findPackageV2(expr ast.Expr, root *types.TypePkgInfo) {
 	if expr == nil {

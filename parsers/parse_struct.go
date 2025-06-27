@@ -39,11 +39,6 @@ func parseStruct(af *ast.File, p *types.Package, imports []*types.Import, proj *
 						}
 						if spec.TypeParams != nil {
 							e.Generic = true
-							//list := parseTypeParamV2(spec.TypeParams, imports, proj)
-							//for _, param := range list {
-							//	slog.Info(param.TypeName)
-							//}
-
 							e.TypeParam = parseTypeParamV2(spec.TypeParams, imports, proj)
 							for _, param := range e.TypeParam {
 								param.Key = fmt.Sprintf("%s_%d_%s", e.Type, param.Index, param.Type)
@@ -53,18 +48,10 @@ func parseStruct(af *ast.File, p *types.Package, imports []*types.Import, proj *
 						switch spec1 := spec.Type.(type) {
 						case *ast.StructType:
 							{
-								// TODO: 解析字段时, 如果其中有泛型类型, 应该和上面的泛型类型一一对应, 可以生成一个唯一的key
+								// 解析字段时, 如果其中有泛型类型, 应该和上面的泛型类型一一对应, 可以生成一个唯一的key
 								// 这样方便后续使用实际类型去覆盖泛型类型时好匹配到
-								e.Field = parseField(spec1.Fields.List, e.TypeParam, imports, proj, e)
-								//for _, field := range e.Field {
-								//	if field.Parent {
-								//		e.Top = false
-								//	}
-								//	if field.TypeParam != nil && len(field.TypeParam) > 0 {
-								//		e.TypeParam = append(e.TypeParam, field.TypeParam...)
-								//	}
-								//
-								//}
+								e.Field = parseField(spec1.Fields.List, e.TypeParam, imports, proj)
+
 								e.Method = parseMethod(af, e, imports, proj)
 
 							}

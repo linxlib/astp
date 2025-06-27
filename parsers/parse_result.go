@@ -146,7 +146,7 @@ func parseResults(params *ast.FieldList, tps []*types.TypeParam, imports []*type
 								}
 							}
 
-							//TODO: children 可能还有children
+							//children 可能还有children
 							if child.Children != nil {
 								for _, child1 := range child.Children {
 									tp1 := &types.TypeParam{

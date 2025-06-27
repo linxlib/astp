@@ -17,7 +17,7 @@ func parseDoc(cg *ast.CommentGroup, selfName string) []*types.Comment {
 	return result
 }
 
-func HandleDocs(cgs []*ast.CommentGroup, name string) []*types.Comment {
+func parseDocs(cgs []*ast.CommentGroup, name string) []*types.Comment {
 	var result = make([]*types.Comment, 0)
 	for _, cg := range cgs {
 		if cg != nil && cg.List != nil {

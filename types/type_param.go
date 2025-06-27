@@ -25,9 +25,6 @@ func (t *TypeParam) Clone() *TypeParam {
 	if t == nil {
 		return nil
 	}
-	if !deepClone {
-		return t
-	}
 	return &TypeParam{
 		Index:         t.Index,
 		Type:          t.Type,
@@ -44,9 +41,6 @@ func (t *TypeParam) Clone() *TypeParam {
 func (t *TypeParam) CloneTiny() *TypeParam {
 	if t == nil {
 		return nil
-	}
-	if !deepClone {
-		return t
 	}
 	return &TypeParam{
 		Index:         t.Index,

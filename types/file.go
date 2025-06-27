@@ -24,9 +24,6 @@ func (f *File) Clone() *File {
 	if f == nil {
 		return nil
 	}
-	if !deepClone {
-		return f
-	}
 	return &File{
 		Name:      f.Name,
 		Key:       f.Key,

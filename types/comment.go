@@ -27,9 +27,6 @@ func (c *Comment) Clone() *Comment {
 	if c == nil {
 		return nil
 	}
-	if !deepClone {
-		return c
-	}
 	return &Comment{
 		Index:      c.Index,
 		Content:    c.Content,
