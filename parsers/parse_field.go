@@ -8,7 +8,7 @@ import (
 	"go/ast"
 )
 
-func parseField(fields []*ast.Field, tps []*types.TypeParam, imports []*types.Import, proj *types.Project, belongToStruct *types.Struct) []*types.Field {
+func parseField(fields []*ast.Field, structTypeParams []*types.TypeParam, imports []*types.Import, proj *types.Project, belongToStruct *types.Struct) []*types.Field {
 	var sf = make([]*types.Field, 0)
 	for idx, field := range fields {
 		af1 := new(types.Field)
@@ -46,7 +46,8 @@ func parseField(fields []*ast.Field, tps []*types.TypeParam, imports []*types.Im
 			af1.Package.Type = info.PkgType
 			af1.TypeName = info.FullName
 			if af1.Generic {
-				if info.Children != nil {
+				// 类似 T[T1] / *E[T1] / []*E[T1] 这样的字段
+				if info.Children != nil { // 如果字段有泛型参数
 					for idx2, child := range info.Children {
 						tp := &types.TypeParam{
 							Type:          child.Name,
@@ -63,19 +64,23 @@ func parseField(fields []*ast.Field, tps []*types.TypeParam, imports []*types.Im
 						tp.Package.Path = child.PkgPath
 						tp.Package.Name = child.PkgName
 						tp.Struct = findType(child.PkgPath, child.Name, proj.BaseDir, proj.ModPkg, proj)
+						if len(structTypeParams) > 0 {
+							for _, tp1 := range structTypeParams {
+								if tp1.Type == info.Name {
+									tp.Key = tp1.Key
+									break
+								}
+							}
+						} else {
+
+						}
 
 						af1.TypeParam = append(af1.TypeParam, tp)
 					}
 				} else {
+					// 类似 T / *E / []*E 这样的字段
 					idx5 := 0
-					if len(tps) > 0 {
-						for _, tp := range tps {
-							if tp.Type == info.Name {
-								idx5 = tp.Index
-								break
-							}
-						}
-					}
+
 					tmp := &types.TypeParam{
 						Type:          info.Name,
 						TypeName:      info.FullName,
@@ -86,6 +91,16 @@ func parseField(fields []*ast.Field, tps []*types.TypeParam, imports []*types.Im
 						TypeInterface: "",
 						Struct:        nil,
 						Package:       new(types.Package),
+					}
+					if len(structTypeParams) > 0 {
+						for _, tp := range structTypeParams {
+							if tp.Type == info.Name {
+								tmp.Key = tp.Key
+								break
+							}
+						}
+					} else {
+
 					}
 					tmp.Package.Type = info.PkgType
 					af1.TypeParam = append(af1.TypeParam, tmp)

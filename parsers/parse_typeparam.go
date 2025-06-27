@@ -75,6 +75,7 @@ func parseTypeParamV2(list *ast.FieldList, imports []*types.Import, proj *types.
 			t.Package = new(types.Package)
 			t.Index = idx
 			t.Type = name.Name
+
 			t.ElemType = constants.ElemGeneric
 
 			info := types.NewTypePkgInfo(proj.ModPkg, "", imports)

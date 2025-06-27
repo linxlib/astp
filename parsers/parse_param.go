@@ -61,10 +61,10 @@ func parseParam(params *ast.FieldList, tps []*types.TypeParam, imports []*types.
 							Package:       new(types.Package),
 						}
 						var hasTp = false
-						for _, tp := range tps {
-							if par.Type == tp.Type {
+						for _, tp1 := range tps {
+							if par.Type == tp1.Type {
 								hasTp = true
-								par.TypeParam = append(par.TypeParam, tp.CloneTiny())
+								par.TypeParam = append(par.TypeParam, tp1.CloneTiny())
 							}
 						}
 						if !hasTp {

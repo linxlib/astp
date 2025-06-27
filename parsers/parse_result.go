@@ -42,11 +42,15 @@ func parseResults(params *ast.FieldList, tps []*types.TypeParam, imports []*type
 							par.Package.Path = info.PkgPath
 							par.Package.Name = info.PkgName
 						}
-						for _, tp := range tps {
-							if par.Type == tp.Type {
-								par.TypeParam = append(par.TypeParam, tp.CloneTiny())
+						if !par.Generic {
+							for _, tp := range tps {
+								if par.Type == tp.Type {
+									par.TypeParam = append(par.TypeParam, tp.CloneTiny())
+									break
+								}
 							}
 						}
+
 						if par.Generic {
 							for idx, child := range info.Children {
 								tp := &types.TypeParam{
@@ -59,6 +63,12 @@ func parseResults(params *ast.FieldList, tps []*types.TypeParam, imports []*type
 									TypeInterface: "",
 									Struct:        nil,
 									Package:       new(types.Package),
+								}
+								for _, tp1 := range tps {
+									if par.Type == tp1.Type {
+										tp.Key = tp1.Key
+										break
+									}
 								}
 								tp.Package.Type = child.PkgType
 								tp.Package.Path = child.PkgPath
@@ -107,6 +117,7 @@ func parseResults(params *ast.FieldList, tps []*types.TypeParam, imports []*type
 						for _, tp := range tps {
 							if par.Type == tp.Type {
 								par.TypeParam = append(par.TypeParam, tp.CloneTiny())
+								break
 							}
 						}
 					}
@@ -127,6 +138,13 @@ func parseResults(params *ast.FieldList, tps []*types.TypeParam, imports []*type
 							tp.Package.Path = child.PkgPath
 							tp.Package.Name = child.PkgName
 							tp.Struct = findType(child.PkgPath, child.Name, proj.BaseDir, proj.ModPkg, proj).Clone()
+
+							for _, tp1 := range tps {
+								if par.Type == tp1.Type {
+									tp.Index = tp1.Index
+									break
+								}
+							}
 
 							//TODO: children 可能还有children
 							if child.Children != nil {
@@ -152,6 +170,7 @@ func parseResults(params *ast.FieldList, tps []*types.TypeParam, imports []*type
 											if tp2.Type == child1.Name {
 												hasTp1 = true
 												tp1.Index = tp2.Index
+												tp1.Key = tp2.Key
 												break
 											}
 										}
@@ -168,6 +187,7 @@ func parseResults(params *ast.FieldList, tps []*types.TypeParam, imports []*type
 									if tp1.Type == child.Name {
 										hasTp = true
 										tp.Index = tp1.Index
+										tp.Key = tp1.Key
 										break
 									}
 

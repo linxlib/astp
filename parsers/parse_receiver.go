@@ -37,6 +37,12 @@ func parseReceiver(recv *ast.FieldList, s *types.Struct, imports []*types.Import
 				Struct:        nil,
 				Package:       new(types.Package),
 			}
+			for _, param := range s.TypeParam {
+				if param.Type == child.Name {
+					tp.Key = param.Key
+					break
+				}
+			}
 			tp.Package.Type = child.PkgType
 			tp.Package.Path = child.PkgPath
 			tp.Package.Name = child.PkgName

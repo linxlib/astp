@@ -8,7 +8,6 @@ import (
 	"log/slog"
 	"os"
 	"slices"
-	"strconv"
 	"strings"
 )
 
@@ -49,8 +48,8 @@ func (p *Project) Write(fileName string) error {
 	//if os.Getenv("ASTP_DEBUG") == "true" {
 	//
 	//}
-	jsonFileSize := strconv.FormatFloat(float64(len(jsonData))/1024.0, 'f', 2, 64)
-	slog.Info("origin json file size", "size", jsonFileSize, "unit", "kb")
+	jsonFileSize, _ := internal.Byte(len(jsonData)).ToString()
+	slog.Info("origin json file", "size", jsonFileSize)
 	slog.Info("project file count", "count", len(p.FileMap))
 	jsonPath := strings.ReplaceAll(fileName, ".gz", ".json")
 	err = os.WriteFile(jsonPath, jsonData, 0644)
@@ -64,15 +63,17 @@ func (p *Project) Write(fileName string) error {
 		return err
 	}
 	defer f.Close()
-
 	// Create gzip writer
 	gz := gzip.NewWriter(f)
-	defer gz.Close()
 
 	// Write compressed data
 	_, err = gz.Write(jsonData)
-	fileInfo, _ := os.Stat(fileName)
-	slog.Info("gzip compressed size", "size", strconv.FormatFloat(float64(fileInfo.Size())/1024.0, 'f', 2, 64), "unit", "kb")
+	defer func() {
+		_ = gz.Close()
+		fileInfo, _ := f.Stat()
+		gzipFileSize, _ := internal.Byte(fileInfo.Size()).ToString()
+		slog.Info("gzip compressed", "size", gzipFileSize)
+	}()
 
 	return err
 }
@@ -148,6 +149,8 @@ func (p *Project) AfterParseProj() {
 	p.handleEnum()
 	for _, file := range p.FileMap {
 		for _, s := range file.Struct {
+			p.handleExistsMethods(s)
+
 			p.handleAnonymousField(s)
 
 			// 处理结构的字段
@@ -524,8 +527,93 @@ func handleGenericField2(s *Field, parentStruct *Struct, p *Project) {
 // currentStruct: 当前结构
 // param: 参数
 // tps: 类型参数(匿名字段对应的结构)
-func (p *Project) handleParentParam(currentStruct *Struct, param *Param, tps []*TypeParam) {
+func (p *Project) handleParentParam(currentStruct *Struct, param *Param, parentStructTypeParams []*TypeParam) {
 	if !param.Generic {
+		if param.Struct != nil {
+			for _, field := range param.Struct.Field {
+				p.handleNonGenericField(field, param.Struct)
+			}
+		}
+
+		return
+	}
+	if param.Struct == nil {
+		// 1. 参数本身的TypeParam eg. param *E / (*E, error) / []*E / ([]*E, error)
+		for _, tp := range parentStructTypeParams {
+			for _, typeParam := range param.TypeParam {
+				if typeParam.Key == tp.Key { // 匹配到了
+					// 设置索引, 表示参数的这个泛型对应结构中的第几个(后续用于覆盖真实的泛型类型)
+					typeParam.Index = tp.Index
+
+					for _, t := range currentStruct.TypeParam {
+						if t.Index == typeParam.Index { // 真实的泛型类型 需要以索引(第几个泛型参数)来匹配
+							typeParam.Struct = t.Struct.Clone()
+							typeParam.Package = t.Package.Clone()
+							param.Struct = t.Struct.Clone()
+						}
+					}
+
+				}
+			}
+		}
+		return
+	}
+
+	// 循环处理
+	// 2. 参数结构的TypeParam和其字段 eg. *resp.Resp[*E] / *resp.Resp[[]*E]
+	// 3. 多层嵌套型 eg. *resp.Resp[PageResult[[]*E]]
+
+	// 处理参数结构的各个字段, 如果字段仍然为泛型, 则递归处理
+	p.handleParentMethodParamGeneric(param.Struct, param.TypeParam, parentStructTypeParams)
+
+	p.handleParentMethodParamRealGeneric(param.Struct, param.TypeParam, currentStruct.TypeParam)
+	//slog.Info("handleParentMethodParamRealGeneric", "typeName", param.TypeName)
+	tn := strings.Builder{}
+	if param.Slice {
+		tn.WriteString("[]")
+	}
+	if param.Pointer {
+		tn.WriteString("*")
+	}
+	tn.WriteString(param.Struct.TypeName) //*param.Resp
+	var tpString []string
+	tn1 := strings.Builder{}
+	if param.Struct != nil {
+		for _, field := range param.Struct.Field {
+			if !field.Generic {
+				continue
+			}
+			tn1.WriteString(field.TypeName)
+			var tpString1 []string
+			if field.Struct != nil {
+				for _, f := range field.Struct.Field {
+					if !f.Generic {
+						continue
+					}
+					tpString1 = append(tpString1, f.TypeName)
+
+				}
+			}
+			if len(tpString1) > 0 {
+				tn1.WriteString("[" + strings.Join(tpString1, ",") + "]")
+			}
+			tpString = append(tpString, tn1.String())
+		}
+	}
+	if len(tpString) > 0 {
+		tn.WriteString("[" + strings.Join(tpString, ",") + "]")
+	}
+	param.TypeName = tn.String()
+}
+
+func (p *Project) handleParam(currentStruct *Struct, param *Param, tps []*TypeParam) {
+	if !param.Generic {
+		if param.Struct != nil {
+			for _, field := range param.Struct.Field {
+				p.handleNonGenericField(field, param.Struct)
+			}
+		}
+
 		return
 	}
 	// 循环处理
@@ -534,20 +622,104 @@ func (p *Project) handleParentParam(currentStruct *Struct, param *Param, tps []*
 	// 3. 多层嵌套型 eg. *resp.Resp[PageResult[[]*E]]
 
 	// 递归查找, 更新泛型的Index(代表对应 currentStruct 泛型中的第几个)
-	p.handleParamGeneric(param.Struct, param.TypeParam, tps)
+	p.handleMethodParamGeneric(param.Struct, param.TypeParam, tps)
 
-	p.handleParamRealGeneric(param.Struct, currentStruct.TypeParam)
+	p.handleMethodParamRealGeneric(param.Struct, param.TypeParam)
 }
 
-func (p *Project) handleParamRealGeneric(s *Struct, tps []*TypeParam) {
-	slog.Info("handleParamRealGeneric")
+func (p *Project) handleParentMethodParamRealGeneric(s *Struct, paramTypeParams []*TypeParam, tps []*TypeParam) {
+	//slog.Info("handleParentMethodParamRealGeneric")
+	if s == nil {
+		return
+	}
+	for idx0, tp0 := range s.TypeParam {
+		for _, field := range s.Field {
+			if !field.Generic {
+				continue
+			}
+			//slog.Info("handleParentMethodParamRealGeneric", "field", field.Name)
+			has := false
+			for _, param := range paramTypeParams {
+				for _, typeParam := range field.TypeParam {
+					if typeParam.Index == param.Index {
+						if param.ElemType == constants.ElemStruct {
+							field.Struct = param.Struct.Clone()
+							field.Pointer = param.Pointer
+							field.Slice = param.Slice
+							if field.Pointer {
+								tmp := field.Struct.TypeName
+								tmp = "*" + tmp
+								if field.Slice {
+									tmp = "[]" + tmp
+								}
+								field.TypeName = tmp
+							} else {
+								tmp := field.Struct.TypeName
+								if field.Slice {
+									tmp = "[]" + tmp
+								}
+								field.TypeName = tmp
+							}
+							p.handleParentMethodParamRealGeneric(field.Struct, field.Struct.TypeParam, tps)
+						} else {
+							for idx2, typeParam1 := range field.TypeParam {
+								if typeParam1.Type != field.Type {
+									continue
+								}
+								for _, tp := range tps {
+									if tp.Index == typeParam1.Index {
+										has = true
+										cloned := tp.Clone()
+										cloned.Pointer = tp0.Pointer
+										cloned.Slice = tp0.Slice
+										field.TypeParam[idx2] = cloned
+										field.Pointer = tp0.Pointer
+										field.Slice = tp0.Slice
+										field.Struct = tp.Struct.Clone()
+										if field.Pointer {
+											tmp := field.Struct.TypeName
+											tmp = "*" + tmp
+											if field.Slice {
+												tmp = "[]" + tmp
+											}
+											field.TypeName = tmp
+										} else {
+											tmp := field.Struct.TypeName
+											if field.Slice {
+												tmp = "[]" + tmp
+											}
+											field.TypeName = tmp
+										}
+										s.TypeParam[idx0] = tp.Clone()
+										s.TypeParam[idx0].Pointer = field.Pointer
+										s.TypeParam[idx0].Slice = field.Slice
+										//TODO: 最外层的param的TypeName需要更新
+										break
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+
+			if !has {
+
+			}
+
+		}
+	}
+}
+
+func (p *Project) handleMethodParamRealGeneric(s *Struct, tps []*TypeParam) {
+	//slog.Info("handleMethodParamRealGeneric")
 	if s == nil {
 		return
 	}
 	for _, param := range s.TypeParam {
 		if param.Index == -1 {
 			for _, field := range s.Field {
-				slog.Info("handleParamRealGeneric", "field", field.Name)
+				//slog.Info("handleMethodParamRealGeneric", "field", field.Name)
 				has := false
 				for idx2, typeParam := range field.TypeParam {
 					if typeParam.Index != -1 {
@@ -577,7 +749,7 @@ func (p *Project) handleParamRealGeneric(s *Struct, tps []*TypeParam) {
 					}
 				}
 				if !has {
-					p.handleParamRealGeneric(field.Struct, tps)
+					p.handleMethodParamRealGeneric(field.Struct, tps)
 				}
 
 			}
@@ -586,16 +758,111 @@ func (p *Project) handleParamRealGeneric(s *Struct, tps []*TypeParam) {
 }
 
 // handleGeneric 处理泛型(递归)
-func (p *Project) handleParamGeneric(s *Struct, tps []*TypeParam, thatTps []*TypeParam) {
+func (p *Project) handleParentMethodParamGeneric(paramStruct *Struct, paramTypeParams []*TypeParam, parentStructTypeParams []*TypeParam) {
+	if paramStruct == nil {
+		return
+	}
+	//slog.Info("handleGeneric", "struct", paramStruct.Name)
+	for _, pstp := range parentStructTypeParams {
+		for idx, ptp := range paramTypeParams {
+			if ptp.Key == pstp.Key {
+				for _, typeParam := range paramStruct.TypeParam {
+					if typeParam.Index == ptp.Index {
+						clonedTypeParam := ptp.Clone()
+						for _, field := range paramStruct.Field {
+							if !field.Generic {
+								continue
+							}
+
+							field.Struct = ptp.Struct.Clone()
+							if field.Struct != nil {
+								clonedTypeParam.Index = -1
+								clonedTypeParam.TypeInterface = "nonce"
+							}
+							field.Slice = clonedTypeParam.Slice
+							field.Pointer = clonedTypeParam.Pointer
+							if clonedTypeParam.Slice {
+								field.Slice = clonedTypeParam.Slice
+							}
+							if clonedTypeParam.Pointer {
+								field.Pointer = clonedTypeParam.Pointer
+							}
+							field.TypeParam = make([]*TypeParam, 0)
+							field.TypeParam = append(field.TypeParam, clonedTypeParam)
+							field.TypeName = clonedTypeParam.TypeName
+							field.Type = clonedTypeParam.Type
+							if field.Struct != nil {
+								p.handleParentMethodParamGeneric(field.Struct, field.TypeParam, parentStructTypeParams)
+							}
+							clonedTypeParam.Index = pstp.Index // 更新参数的泛型参数的Index
+							clonedTypeParam.Key = pstp.Key
+							paramStruct.TypeParam[idx] = clonedTypeParam
+						}
+					}
+				}
+
+			}
+		}
+	}
+
+	//for _, typeParam := range paramStruct.TypeParam {
+	//	for _, t := range paramTypeParams {
+	//		if t.Index == typeParam.Index {
+	//			clonedTypeParam := typeParam.Clone()
+	//
+	//			for _, field := range paramStruct.Field {
+	//				if field.Generic {
+	//					field.Struct = t.Struct.Clone()
+	//					if field.Struct != nil {
+	//						clonedTypeParam.Index = -1
+	//						clonedTypeParam.TypeInterface = "nonce"
+	//
+	//					}
+	//					field.Slice = clonedTypeParam.Slice
+	//					field.Pointer = clonedTypeParam.Pointer
+	//					if t.Slice {
+	//						field.Slice = t.Slice
+	//					}
+	//					if t.Pointer {
+	//						field.Pointer = t.Pointer
+	//					}
+	//					field.TypeParam = make([]*TypeParam, 0)
+	//					field.TypeParam = append(field.TypeParam, clonedTypeParam)
+	//
+	//					if field.Slice {
+	//						tmp := field.TypeName
+	//						if field.Pointer {
+	//							tmp = "*" + tmp
+	//						}
+	//						field.TypeName = "[]" + tmp
+	//					}
+	//
+	//					if field.Struct != nil {
+	//						//field.Struct.TypeParam = make([]*TypeParam, 0)
+	//						//field.Struct.TypeParam = append(field.Struct.TypeParam, t.Clone())
+	//						p.handleParentMethodParamGeneric(field.Struct, field.TypeParam, parentStructTypeParams)
+	//					}
+	//					cloneT := t.Clone()
+	//					cloneT.Index = -1
+	//					paramStruct.TypeParam[idx] = cloneT
+	//				}
+	//
+	//			}
+	//		}
+	//	}
+	//}
+	//slog.Info("handleGeneric", "typeParam", paramStruct.TypeParam)
+}
+func (p *Project) handleMethodParamGeneric(s *Struct, tps []*TypeParam, thatTps []*TypeParam) {
 	if s == nil {
 		return
 	}
-	slog.Info("handleGeneric", "struct", s.Name)
+	//slog.Info("handleGeneric", "struct", s.Name)
 
-	for idx, typeParam := range s.TypeParam {
+	for idx, _ := range s.TypeParam {
 		for idx1, t := range tps {
 			if idx == idx1 {
-				clonedTypeParam := typeParam.Clone()
+				clonedTypeParam := t.Clone()
 				for _, field := range s.Field {
 					if field.Generic {
 						field.Struct = t.Struct.Clone()
@@ -618,7 +885,7 @@ func (p *Project) handleParamGeneric(s *Struct, tps []*TypeParam, thatTps []*Typ
 						if field.Struct != nil {
 							//field.Struct.TypeParam = make([]*TypeParam, 0)
 							//field.Struct.TypeParam = append(field.Struct.TypeParam, t.Clone())
-							p.handleParamGeneric(field.Struct, field.TypeParam, thatTps)
+							p.handleMethodParamGeneric(field.Struct, field.TypeParam, thatTps)
 						}
 						cloneT := t.Clone()
 						cloneT.Index = -1
@@ -628,37 +895,13 @@ func (p *Project) handleParamGeneric(s *Struct, tps []*TypeParam, thatTps []*Typ
 				}
 			}
 		}
-		//for _, t := range thatTps {
-		//	if t.Index == typeParam.Index {
-		//		clonedTypeParam := t.Clone()
-		//		for _, field := range s.Field {
-		//			for _, tp := range field.TypeParam {
-		//				if tp.Index == clonedTypeParam.Index {
-		//					field.Struct = t.Struct.Clone()
-		//					field.TypeParam = make([]*TypeParam, 0)
-		//					field.TypeParam = append(field.TypeParam, t.Clone())
-		//					s.TypeParam[idx] = clonedTypeParam
-		//				}
-		//			}
-		//
-		//		}
-		//
-		//	}
-		//}
-	}
-	slog.Info("handleGeneric", "typeParam", s.TypeParam)
 
-	//for _, tp := range s.TypeParam {
-	//	for _, thisTp := range thisTps {
-	//		if thisTp.Type == tp.Type {
-	//			tp.Index = thisTp.Index
-	//		}
-	//	}
-	//}
+	}
+	//slog.Info("handleMethodParamGeneric", "typeParam", s.TypeParam)
 
 }
 
-func (p *Project) handleParentMethod(currentStruct *Struct, parentMethod *Function, tps []*TypeParam) {
+func (p *Project) handleParentMethod(currentStruct *Struct, parentMethod *Function, parentStructTypeParams []*TypeParam) {
 	// 处理receiver
 	// 替换拷贝过来的方法的接收器为当前类型
 	parentMethod.Receiver = nil
@@ -668,11 +911,11 @@ func (p *Project) handleParentMethod(currentStruct *Struct, parentMethod *Functi
 
 	//处理 param
 	for _, param := range parentMethod.Param {
-		p.handleParentParam(currentStruct, param, tps)
+		p.handleParentParam(currentStruct, param, parentStructTypeParams)
 	}
 	//处理result
 	for _, param := range parentMethod.Result {
-		p.handleParentParam(currentStruct, param, tps)
+		p.handleParentParam(currentStruct, param, parentStructTypeParams)
 	}
 }
 
@@ -705,7 +948,7 @@ func (p *Project) handleAnonymousField(currentStruct *Struct) {
 
 		// 上级结构的注释中op=true的注释拷贝过来 其他注释无用
 		// 即 类似 @XXX 这样的注解
-		for _, comment := range fieldStruct.Comment {
+		for _, comment := range fieldStruct.Doc {
 			if !comment.Op {
 				continue
 			}
@@ -722,7 +965,7 @@ func (p *Project) handleAnonymousField(currentStruct *Struct) {
 				continue
 			}
 			cloned := function.Clone()
-			slog.Info("handleParentMethod", "method", cloned.Name)
+			//slog.Info("handleParentMethod", "method", cloned.Name)
 			p.handleParentMethod(currentStruct, cloned, tps)
 			currentStruct.Method = append(currentStruct.Method, cloned)
 		}
@@ -738,5 +981,44 @@ func (p *Project) handleAnonymousField(currentStruct *Struct) {
 		currentStruct.Field = slices.DeleteFunc(currentStruct.Field, func(i *Field) bool {
 			return i.Name == delField.Name && i.Type == delField.Type && i.TypeName == delField.TypeName
 		})
+	}
+}
+
+func (p *Project) handleExistsMethods(currentStruct *Struct) {
+	isOp := false
+	for _, comment := range currentStruct.Doc {
+		if !comment.Op {
+			continue
+		}
+		isOp = true
+		break
+	}
+	if !isOp {
+		return
+	}
+	for _, method := range currentStruct.Method {
+		if method.Private || !method.IsOp() {
+			continue
+		}
+		//处理 param
+		for _, param := range method.Param {
+			p.handleParam(currentStruct, param, currentStruct.TypeParam)
+		}
+		//处理result
+		for _, param := range method.Result {
+			p.handleParam(currentStruct, param, currentStruct.TypeParam)
+		}
+	}
+
+}
+
+func (p *Project) handleNonGenericField(f *Field, parentStruct *Struct) {
+	if f.Package.Type == constants.PackageSamePackage {
+		keyHash1 := internal.GetKeyHash(parentStruct.Package.Path, f.Type)
+		newStruct1 := p.findStruct(keyHash1)
+		if newStruct1 != nil {
+			f.Struct = newStruct1.Clone()
+			f.Package = newStruct1.Package.Clone()
+		}
 	}
 }

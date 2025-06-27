@@ -8,6 +8,7 @@ type TypeParam struct {
 	Type          string             `json:"type"`
 	TypeName      string             `json:"type_name"`
 	Index         int                `json:"index"`
+	Key           string             `json:"key"`
 	ElemType      constants.ElemType `json:"elem_type,omitempty"`
 	Pointer       bool               `json:"pointer,omitempty"`
 	Slice         bool               `json:"slice,omitempty"`
@@ -33,6 +34,7 @@ func (t *TypeParam) Clone() *TypeParam {
 		TypeName:      t.TypeName,
 		ElemType:      t.ElemType,
 		Pointer:       t.Pointer,
+		Key:           t.Key,
 		Slice:         t.Slice,
 		TypeInterface: t.TypeInterface,
 		Struct:        t.Struct.Clone(),
@@ -51,6 +53,7 @@ func (t *TypeParam) CloneTiny() *TypeParam {
 		Type:          t.Type,
 		TypeName:      t.TypeName,
 		ElemType:      t.ElemType,
+		Key:           t.Key,
 		Pointer:       t.Pointer,
 		Slice:         t.Slice,
 		TypeInterface: t.TypeInterface,

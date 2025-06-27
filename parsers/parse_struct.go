@@ -1,6 +1,7 @@
 package parsers
 
 import (
+	"fmt"
 	"github.com/linxlib/astp/constants"
 	"github.com/linxlib/astp/internal"
 	"github.com/linxlib/astp/types"
@@ -44,6 +45,10 @@ func parseStruct(af *ast.File, p *types.Package, imports []*types.Import, proj *
 							//}
 
 							e.TypeParam = parseTypeParamV2(spec.TypeParams, imports, proj)
+							for _, param := range e.TypeParam {
+								param.Key = fmt.Sprintf("%s_%d_%s", e.Type, param.Index, param.Type)
+							}
+
 						}
 						switch spec1 := spec.Type.(type) {
 						case *ast.StructType:

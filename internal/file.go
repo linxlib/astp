@@ -12,6 +12,7 @@ import (
 func GetKey(pkg string, name string) string {
 	return pkg + "." + name
 }
+
 func GetKeyHash(pkg string, name string) string {
 	return Md5(pkg + "." + name)
 }
