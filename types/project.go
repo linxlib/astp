@@ -343,23 +343,28 @@ func (p *Project) handleParentParam(currentStruct *Struct, param *Param, parentS
 	}
 	if param.Struct == nil {
 		// 1. 参数本身的TypeParam eg. param *E / (*E, error) / []*E / ([]*E, error)
-		for _, tp := range parentStructTypeParams {
-			for _, typeParam := range param.TypeParam {
-				if typeParam.Key == tp.Key { // 匹配到了
-					// 设置索引, 表示参数的这个泛型对应结构中的第几个(后续用于覆盖真实的泛型类型)
-					typeParam.Index = tp.Index
-
-					for _, t := range currentStruct.TypeParam {
-						if t.Index == typeParam.Index { // 真实的泛型类型 需要以索引(第几个泛型参数)来匹配
-							typeParam.Struct = t.Struct.Clone()
-							typeParam.Package = t.Package.Clone()
-							param.Struct = t.Struct.Clone()
-						}
-					}
-
-				}
+		for _, typeParam := range currentStruct.TypeParam {
+			if param.Type == typeParam.OType {
+				param.Struct = typeParam.Struct.Clone()
 			}
 		}
+		//for _, tp := range parentStructTypeParams {
+		//	for _, typeParam := range param.TypeParam {
+		//		if typeParam.Key == tp.Key { // 匹配到了
+		//			// 设置索引, 表示参数的这个泛型对应结构中的第几个(后续用于覆盖真实的泛型类型)
+		//			typeParam.Index = tp.Index
+		//
+		//			for _, t := range currentStruct.TypeParam {
+		//				if t.Index == typeParam.Index { // 真实的泛型类型 需要以索引(第几个泛型参数)来匹配
+		//					typeParam.Struct = t.Struct.Clone()
+		//					typeParam.Package = t.Package.Clone()
+		//					param.Struct = t.Struct.Clone()
+		//				}
+		//			}
+		//
+		//		}
+		//	}
+		//}
 		return
 	}
 
@@ -368,7 +373,7 @@ func (p *Project) handleParentParam(currentStruct *Struct, param *Param, parentS
 	// 3. 多层嵌套型 eg. *resp.Resp[PageResult[[]*E]]
 
 	// 处理参数结构的各个字段, 如果字段仍然为泛型, 则递归处理
-	p.handleParentMethodParamGeneric(param.Struct, param.TypeParam, parentStructTypeParams)
+	p.handleParentMethodParamGeneric(param.Struct, param.TypeParam, currentStruct.TypeParam)
 
 	p.handleParentMethodParamRealGeneric(param.Struct, param.TypeParam, currentStruct.TypeParam)
 	//slog.Info("handleParentMethodParamRealGeneric", "typeName", param.TypeName)
@@ -561,9 +566,11 @@ func (p *Project) handleParentMethodParamGeneric(paramStruct *Struct, paramTypeP
 		return
 	}
 	//slog.Info("handleGeneric", "struct", paramStruct.Name)
+	has := false
 	for _, pstp := range parentStructTypeParams {
 		for idx, ptp := range paramTypeParams {
-			if ptp.Key == pstp.Key {
+			if ptp.Type == pstp.OType {
+				has = true
 				for _, typeParam := range paramStruct.TypeParam {
 					if typeParam.Index == ptp.Index {
 						clonedTypeParam := ptp.Clone()
@@ -572,11 +579,8 @@ func (p *Project) handleParentMethodParamGeneric(paramStruct *Struct, paramTypeP
 								continue
 							}
 
-							field.Struct = ptp.Struct.Clone()
-							if field.Struct != nil {
-								clonedTypeParam.Index = -1
-								clonedTypeParam.TypeInterface = "nonce"
-							}
+							field.Struct = pstp.Struct.Clone()
+
 							field.Slice = clonedTypeParam.Slice
 							field.Pointer = clonedTypeParam.Pointer
 							if clonedTypeParam.Slice {
@@ -602,6 +606,14 @@ func (p *Project) handleParentMethodParamGeneric(paramStruct *Struct, paramTypeP
 			}
 		}
 	}
+	if !has {
+		for _, field := range paramStruct.Field {
+			if field.Generic {
+				p.handleParentMethodParamGeneric(field.Struct, paramStruct.TypeParam, parentStructTypeParams)
+			}
+		}
+	}
+
 }
 func (p *Project) handleMethodParamGeneric(s *Struct, tps []*TypeParam, thatTps []*TypeParam) {
 	if s == nil {
@@ -705,6 +717,13 @@ func (p *Project) handleAnonymousField(currentStruct *Struct) {
 		// 提取上级结构的泛型类型定义(这里一般还是T,E这样的'Type')
 		// 用于后面receiver param result的处理
 		tps := CopySlice(fieldStruct.TypeParam)
+		for _, tp := range tps {
+			for _, param := range currentStruct.TypeParam {
+				if tp.Index == param.Index {
+					param.OType = tp.Type
+				}
+			}
+		}
 
 		for _, function := range fieldStruct.Method {
 			// 跳过私有方法和非操作方法

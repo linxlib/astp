@@ -6,6 +6,7 @@ var _ IElem[*TypeParam] = (*TypeParam)(nil)
 
 type TypeParam struct {
 	Type          string             `json:"type"`
+	OType         string             `json:"o_type"`
 	TypeName      string             `json:"type_name"`
 	Index         int                `json:"index"`
 	Key           string             `json:"key"`
